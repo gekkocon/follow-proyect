@@ -27,12 +27,7 @@ export function AppLayout({ children, initialBrand }: Props) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-muted/30">
-      {/* Sidebar — hidden on mobile, always visible on md+ */}
-      <div className="hidden md:flex">
-        <Sidebar open={false} onClose={() => {}} />
-      </div>
-
-      {/* Mobile sidebar drawer */}
+      {/* Sidebar — drawer on mobile, always visible on md+ */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
