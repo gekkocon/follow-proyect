@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { BottomNav } from './BottomNav';
+
+const BottomNav = dynamic(() => import('./BottomNav').then((m) => m.BottomNav), { ssr: false });
 import { useBrandStore } from '@/src/store/brandStore';
 import type { DbBrandSettings } from '@/src/lib/supabase/brand-actions';
 

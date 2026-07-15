@@ -20,6 +20,12 @@ const createSchema = baseSchema.extend({
   password: z.string().min(8, 'Mínimo 8 caracteres'),
 });
 
+const editSchema = baseSchema.extend({
+  password: z.string().refine((v) => !v || v.length >= 8, {
+    message: 'Mínimo 8 caracteres si cambias la contraseña',
+  }).optional(),
+});
+
 type FormValues = z.infer<typeof baseSchema>;
 
 type Props = {
@@ -42,7 +48,7 @@ export function UserForm({ user, onSuccess, onCancel }: Props) {
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(isEditing ? baseSchema : createSchema),
+    resolver: zodResolver(isEditing ? editSchema : createSchema),
     defaultValues: {
       name:     user?.name   ?? '',
       email:    user?.email  ?? '',
@@ -91,23 +97,23 @@ export function UserForm({ user, onSuccess, onCancel }: Props) {
         {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
       </div>
 
-      {/* Contraseña — solo al crear */}
-      {!isEditing && (
-        <div>
-          <label className={labelClass}>Contraseña</label>
-          <input
-            {...register('password')}
-            type="password"
-            placeholder="Mínimo 8 caracteres"
-            className={inputClass}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-          />
-          {errors.password && (
-            <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
-          )}
-        </div>
-      )}
+      {/* Contraseña */}
+      <div>
+        <label className={labelClass}>
+          Contraseña{isEditing && <span className="ml-1 text-muted-foreground font-normal">(dejar vacío para no cambiar)</span>}
+        </label>
+        <input
+          {...register('password')}
+          type="password"
+          placeholder={isEditing ? 'Nueva contraseña (opcional)' : 'Mínimo 8 caracteres'}
+          className={inputClass}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+        />
+        {errors.password && (
+          <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+        )}
+      </div>
 
       {/* Rol */}
       <div>

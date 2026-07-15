@@ -97,19 +97,23 @@ export async function updateUser(
     .eq('id', id)
     .single();
 
-  // If email changed, update it in Supabase Auth too
-  if (current && current.email !== newEmail) {
+  // If email or password changed, update in Supabase Auth
+  const emailChanged = current && current.email !== newEmail;
+  const newPassword  = values.password?.trim();
+
+  if (emailChanged || newPassword) {
     const admin = createAdminClient();
 
-    // Look up the Auth user by current email
+    // Look up Auth user by current email
     const { data: authList } = await admin.auth.admin.listUsers();
-    const authUser = authList?.users.find((u) => u.email === current.email);
+    const authUser = authList?.users.find((u) => u.email === (current?.email ?? newEmail));
 
     if (authUser) {
-      const { error: authError } = await admin.auth.admin.updateUserById(
-        authUser.id,
-        { email: newEmail }
-      );
+      const updates: { email?: string; password?: string } = {};
+      if (emailChanged) updates.email = newEmail;
+      if (newPassword)  updates.password = newPassword;
+
+      const { error: authError } = await admin.auth.admin.updateUserById(authUser.id, updates);
       if (authError) {
         if (authError.message.toLowerCase().includes('already')) {
           return { error: 'Ya existe una cuenta con ese email.' };
