@@ -1,0 +1,61 @@
+const CACHE_NAME = 'femco-v1';
+const OFFLINE_URL = '/offline';
+
+const PRECACHE_URLS = [
+  '/offline',
+  '/dashboard',
+  '/manifest.json',
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg',
+];
+
+// ── Install: precache offline shell ──────────────────────────────────────────
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
+  self.skipWaiting();
+});
+
+// ── Activate: clear old caches ────────────────────────────────────────────────
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+// ── Fetch: network-first; fall back to cache or offline page ─────────────────
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Skip non-same-origin requests (Supabase API, fonts, etc.)
+  if (url.origin !== self.location.origin) return;
+
+  // Navigation requests: network-first, offline page as fallback
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(OFFLINE_URL).then((r) => r || Response.error())
+      )
+    );
+    return;
+  }
+
+  // Static assets: cache-first
+  event.respondWith(
+    caches.match(event.request).then(
+      (cached) => cached || fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+    )
+  );
+});
