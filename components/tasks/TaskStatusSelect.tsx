@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TASK_STATUS_LABELS } from '@/src/lib/constants';
@@ -25,6 +26,9 @@ const dotClass: Record<Status, string> = {
 };
 
 const STATUS_ORDER: Status[] = ['todo', 'in_progress', 'in_review', 'done', 'blocked'];
+const DROPDOWN_HEIGHT = 190; // approx height of 5 options
+
+type DropdownPos = { top: number; left: number };
 
 type Props = {
   taskId: number;
@@ -34,24 +38,39 @@ type Props = {
 
 export function TaskStatusSelect({ taskId, status, onUpdate }: Props) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<DropdownPos>({ top: 0, left: 0 });
   const [pending, setPending] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onOutside(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!buttonRef.current?.contains(e.target as Node)) setOpen(false);
     }
     function onEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    function onScroll() { setOpen(false); }
     document.addEventListener('mousedown', onOutside);
     document.addEventListener('keydown', onEsc);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('mousedown', onOutside);
       document.removeEventListener('keydown', onEsc);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
+
+  function handleOpen() {
+    if (pending || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= DROPDOWN_HEIGHT
+      ? rect.bottom + 4
+      : rect.top - DROPDOWN_HEIGHT - 4;
+    setPos({ top, left: rect.left });
+    setOpen((v) => !v);
+  }
 
   async function handleSelect(newStatus: Status) {
     setOpen(false);
@@ -61,10 +80,38 @@ export function TaskStatusSelect({ taskId, status, onUpdate }: Props) {
     setPending(false);
   }
 
+  const dropdown = open && typeof window !== 'undefined'
+    ? createPortal(
+        <div
+          role="listbox"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[9999] min-w-[152px] rounded-lg border border-border bg-white shadow-lg py-1 animate-in fade-in-0 zoom-in-95 duration-100"
+        >
+          {STATUS_ORDER.map((s) => (
+            <button
+              key={s}
+              role="option"
+              aria-selected={s === status}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
+              className={cn(
+                'flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors hover:bg-muted',
+                s === status && 'font-semibold bg-muted/60'
+              )}
+            >
+              <span className={cn('h-2 w-2 rounded-full shrink-0', dotClass[s])} />
+              {TASK_STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div className="relative inline-block">
       <button
-        onClick={() => !pending && setOpen((v) => !v)}
+        ref={buttonRef}
+        onClick={handleOpen}
         className={cn(
           'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity',
           badgeClass[status],
@@ -80,28 +127,7 @@ export function TaskStatusSelect({ taskId, status, onUpdate }: Props) {
         {!pending && <ChevronDown size={10} className="shrink-0 opacity-60" />}
       </button>
 
-      {open && (
-        <div
-          role="listbox"
-          className="absolute left-0 top-[calc(100%+4px)] z-30 min-w-[152px] rounded-lg border border-border bg-white shadow-lg py-1 animate-in fade-in-0 zoom-in-95 duration-100"
-        >
-          {STATUS_ORDER.map((s) => (
-            <button
-              key={s}
-              role="option"
-              aria-selected={s === status}
-              onClick={() => handleSelect(s)}
-              className={cn(
-                'flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors hover:bg-muted',
-                s === status && 'font-semibold bg-muted/60'
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-full shrink-0', dotClass[s])} />
-              {TASK_STATUS_LABELS[s]}
-            </button>
-          ))}
-        </div>
-      )}
+      {dropdown}
     </div>
   );
 }
