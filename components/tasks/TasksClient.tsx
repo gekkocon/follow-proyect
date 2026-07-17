@@ -9,40 +9,17 @@ import { cn } from '@/lib/utils';
 import { updateTaskStatus } from '@/src/lib/supabase/task-actions';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
 import { StatusBadge } from '@/components/projects/StatusBadge';
+import { AssigneeAvatars } from '@/components/projects/AssigneeSelector';
 import { TaskStatusSelect } from './TaskStatusSelect';
 import { TaskFilters, type TaskFiltersState } from './TaskFilters';
 import type { DbTask, DbUser } from '@/src/lib/supabase/types';
-import type { TaskListItem } from '@/app/(dashboard)/tasks/page';
+import type { TaskListItem, SubtaskListItem } from '@/app/(dashboard)/tasks/page';
 
 type Props = {
   initialTasks: TaskListItem[];
   users: Pick<DbUser, 'id' | 'name'>[];
   error?: string | null;
 };
-
-function SubtasksList({ subtasks }: { subtasks: TaskListItem['subtasks'] }) {
-  return (
-    <div className="divide-y divide-border/60">
-      {subtasks.map((sub) => {
-        const subOverdue = sub.due_date && sub.status !== 'done' && isPast(parseISO(sub.due_date));
-        return (
-          <div key={sub.id} className="flex items-center gap-2 py-2 pl-2">
-            <CornerDownRight size={12} className="shrink-0 text-muted-foreground/50" />
-            <span className={cn('flex-1 min-w-0 truncate text-xs', sub.status === 'done' && 'line-through text-muted-foreground')}>
-              {sub.title}
-            </span>
-            <StatusBadge status={sub.status} className="text-[10px] py-0 px-1.5 shrink-0" />
-            {sub.due_date && (
-              <span className={cn('text-[10px] shrink-0', subOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
-                {format(parseISO(sub.due_date), 'd MMM', { locale: es })}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export function TasksClient({ initialTasks, users, error }: Props) {
   const router = useRouter();
@@ -167,7 +144,13 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                         {' · '}
                         {task.subtasks.filter((s) => s.status === 'done').length}/{task.subtasks.length} completadas
                       </button>
-                      {expanded && <SubtasksList subtasks={task.subtasks} />}
+                      {expanded && (
+                        <div className="space-y-2 pt-1">
+                          {task.subtasks.map((sub) => (
+                            <SubtaskCard key={sub.id} subtask={sub} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -254,20 +237,60 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                             ) : <span className="text-muted-foreground/50 text-xs">—</span>}
                           </td>
                         </tr>
-                        {expanded && (hasBlockedReason || hasSubtasks) && (
-                          <tr className="bg-muted/20">
+
+                        {/* Blocked reason — own row */}
+                        {expanded && hasBlockedReason && (
+                          <tr className="bg-red-50/50">
                             <td />
                             <td colSpan={6} className="px-4 py-2">
-                              {hasBlockedReason && (
-                                <div className="flex items-start gap-2 text-xs text-red-700 mb-2">
-                                  <AlertOctagon size={12} className="mt-0.5 shrink-0" />
-                                  <span>{task.blocked_reason}</span>
-                                </div>
-                              )}
-                              {hasSubtasks && <SubtasksList subtasks={task.subtasks} />}
+                              <div className="flex items-start gap-2 text-xs text-red-700">
+                                <AlertOctagon size={12} className="mt-0.5 shrink-0" />
+                                <span>{task.blocked_reason}</span>
+                              </div>
                             </td>
                           </tr>
                         )}
+
+                        {/* Subtasks — one <tr> per subtask, columns aligned with parent table */}
+                        {expanded && hasSubtasks && task.subtasks.map((sub) => {
+                          const subOverdue = sub.due_date && sub.status !== 'done' && isPast(parseISO(sub.due_date));
+                          return (
+                            <tr key={sub.id} className="bg-muted/10 text-muted-foreground">
+                              <td className="px-4 py-2 w-6" />
+                              <td className="px-4 py-2 max-w-[280px]">
+                                <div className="flex items-center gap-1.5 min-w-0 pl-3">
+                                  <CornerDownRight size={12} className="shrink-0 text-muted-foreground/50" />
+                                  <span className={cn('truncate text-xs', sub.status === 'done' && 'line-through text-muted-foreground/70')}>
+                                    {sub.title}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 hidden md:table-cell">
+                                <span className="text-muted-foreground/40 text-xs">—</span>
+                              </td>
+                              <td className="px-4 py-2 hidden lg:table-cell">
+                                {sub.assignees.length > 0 ? (
+                                  <AssigneeAvatars users={sub.assignees} max={2} />
+                                ) : (
+                                  <span className="text-muted-foreground/40 text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2">
+                                <StatusBadge status={sub.status} className="text-[10px] py-0 px-1.5" />
+                              </td>
+                              <td className="px-4 py-2 hidden sm:table-cell">
+                                <PriorityBadge priority={sub.priority} className="text-[10px] py-0 px-1.5" />
+                              </td>
+                              <td className="px-4 py-2 hidden md:table-cell">
+                                {sub.due_date ? (
+                                  <span className={cn('text-xs', subOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
+                                    {format(parseISO(sub.due_date), 'd MMM yyyy', { locale: es })}
+                                  </span>
+                                ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </Fragment>
                     );
                   })}
@@ -277,6 +300,40 @@ export function TasksClient({ initialTasks, users, error }: Props) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Subtask card — mobile ─────────────────────────────────────────────────
+function SubtaskCard({ subtask }: { subtask: SubtaskListItem }) {
+  const isOverdue = subtask.due_date && subtask.status !== 'done' && isPast(parseISO(subtask.due_date));
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 space-y-1.5">
+      <div className="flex items-start gap-1.5">
+        <CornerDownRight size={12} className="mt-0.5 shrink-0 text-muted-foreground/50" />
+        <span className={cn('flex-1 min-w-0 text-xs font-medium', subtask.status === 'done' && 'line-through text-muted-foreground')}>
+          {subtask.title}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap pl-[18px]">
+        <StatusBadge status={subtask.status} className="text-[10px] py-0 px-1.5" />
+        <PriorityBadge priority={subtask.priority} className="text-[10px] py-0 px-1.5" />
+        {subtask.due_date && (
+          <span className={cn('inline-flex items-center gap-1 text-[11px]', isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
+            <CalendarDays size={10} />
+            {format(parseISO(subtask.due_date), 'd MMM', { locale: es })}
+          </span>
+        )}
+        {subtask.assignees.length > 0 && (
+          <div className="flex items-center gap-1">
+            <AssigneeAvatars users={subtask.assignees} max={2} />
+            <span className="text-[11px] text-muted-foreground">
+              {subtask.assignees.map((a) => a.name).join(', ')}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

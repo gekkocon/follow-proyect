@@ -41,11 +41,13 @@ export type DbTask = {
 };
 
 // Fase 5E: subtasks extended with status and due_date
+// Fase 6B+: priority added
 export type DbSubtask = {
   id: number;
   title: string;
   completed: boolean;
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  priority: 'low' | 'medium' | 'high' | 'critical';
   due_date: string | null;
   task_id: number;
   created_at: string;

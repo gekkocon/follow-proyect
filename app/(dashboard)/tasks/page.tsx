@@ -4,8 +4,12 @@ import { getActiveUser, isGlobalAdmin } from '@/src/lib/supabase/active-user';
 import { getVisibleProjectIds } from '@/src/lib/supabase/member-actions';
 import type { TaskWithRelations, DbUser, DbSubtask } from '@/src/lib/supabase/types';
 
+export type SubtaskListItem = Pick<DbSubtask, 'id' | 'title' | 'status' | 'priority' | 'due_date' | 'completed'> & {
+  assignees: Pick<DbUser, 'id' | 'name'>[];
+};
+
 export type TaskListItem = TaskWithRelations & {
-  subtasks: Pick<DbSubtask, 'id' | 'title' | 'status' | 'due_date' | 'completed'>[];
+  subtasks: SubtaskListItem[];
 };
 
 async function getTasksData(): Promise<{
@@ -44,25 +48,47 @@ async function getTasksData(): Promise<{
   if (error) return { tasks: [], users: [], error: error.message };
 
   const taskIds = (tasks ?? []).map((t) => t.id);
-  const { data: subtasksRaw } = taskIds.length
-    ? await supabase
-        .from('subtasks')
-        .select('id, title, status, due_date, completed, task_id')
-        .in('task_id', taskIds)
-    : { data: [] };
 
-  const subtasksByTask = new Map<number, TaskListItem['subtasks']>();
+  const [{ data: subtasksRaw }, { data: subtaskAssigneesRaw }] = taskIds.length
+    ? await Promise.all([
+        supabase
+          .from('subtasks')
+          .select('id, title, status, priority, due_date, completed, task_id')
+          .in('task_id', taskIds),
+        supabase
+          .from('subtask_assignees')
+          .select('subtask_id, user_id'),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const userMap = Object.fromEntries((users ?? []).map((u) => [u.id, u]));
+
+  const assigneesBySubtask = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
+  for (const sa of subtaskAssigneesRaw ?? []) {
+    const u = userMap[sa.user_id];
+    if (!u) continue;
+    const list = assigneesBySubtask.get(sa.subtask_id) ?? [];
+    list.push(u);
+    assigneesBySubtask.set(sa.subtask_id, list);
+  }
+
+  const subtasksByTask = new Map<number, SubtaskListItem[]>();
   for (const s of subtasksRaw ?? []) {
     const list = subtasksByTask.get(s.task_id) ?? [];
-    list.push({ id: s.id, title: s.title, status: s.status, due_date: s.due_date, completed: s.completed });
+    list.push({
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      priority: s.priority,
+      due_date: s.due_date,
+      completed: s.completed,
+      assignees: assigneesBySubtask.get(s.id) ?? [],
+    });
     subtasksByTask.set(s.task_id, list);
   }
 
   const projectMap = Object.fromEntries(
     (projects ?? []).map((p) => [p.id, p])
-  );
-  const userMap = Object.fromEntries(
-    (users ?? []).map((u) => [u.id, u])
   );
 
   const tasksWithRelations: TaskListItem[] = (tasks ?? []).map((t) => ({

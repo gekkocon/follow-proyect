@@ -69,6 +69,7 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
   const [form, setForm] = useState({
     title: subtask.title,
     status: subtask.status,
+    priority: subtask.priority,
     due_date: subtask.due_date ?? '',
     assigneeIds: subtask.assignees.map((a) => a.id),
   });
@@ -93,6 +94,7 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
       {
         title: form.title,
         status: form.status as DbSubtask['status'],
+        priority: form.priority as DbSubtask['priority'],
         due_date: form.due_date || null,
       },
       form.assigneeIds
@@ -151,6 +153,17 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
           {TASK_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={form.priority}
+          onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as DbSubtask['priority'] }))}
+          className="rounded-md border border-border px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          {TASK_PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
             </option>
           ))}
         </select>
@@ -233,6 +246,9 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
       {/* Status */}
       <StatusBadge status={subtask.status} className="text-[10px] py-0 px-1.5 shrink-0" />
 
+      {/* Priority */}
+      <PriorityBadge priority={subtask.priority} className="text-[10px] py-0 px-1.5 shrink-0" />
+
       {/* Due date */}
       {subtask.due_date && (
         <span
@@ -283,6 +299,7 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
   const [form, setForm] = useState({
     title: '',
     status: 'todo' as DbSubtask['status'],
+    priority: 'medium' as DbSubtask['priority'],
     due_date: '',
     assigneeIds: [] as number[],
   });
@@ -298,7 +315,7 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
     const { error } = await createProjectSubtask(
       taskId,
       projectId,
-      { title: form.title, status: form.status, due_date: form.due_date || null },
+      { title: form.title, status: form.status, priority: form.priority, due_date: form.due_date || null },
       form.assigneeIds
     );
     setSaving(false);
@@ -332,6 +349,17 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
         {TASK_STATUSES.map((s) => (
           <option key={s.value} value={s.value}>
             {s.label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={form.priority}
+        onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as DbSubtask['priority'] }))}
+        className="rounded-md border border-border px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        {TASK_PRIORITIES.map((p) => (
+          <option key={p.value} value={p.value}>
+            {p.label}
           </option>
         ))}
       </select>

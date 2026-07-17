@@ -91,11 +91,30 @@ CREATE TABLE IF NOT EXISTS tasks (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS subtasks (
+  id         BIGSERIAL      PRIMARY KEY,
+  title      TEXT           NOT NULL,
+  completed  BOOLEAN        NOT NULL DEFAULT FALSE,
+  status     task_status    NOT NULL DEFAULT 'todo',
+  priority   priority_level NOT NULL DEFAULT 'medium',
+  due_date   DATE,
+  task_id    BIGINT         NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_assignees (
   id         BIGSERIAL   PRIMARY KEY,
-  title      TEXT        NOT NULL,
-  completed  BOOLEAN     NOT NULL DEFAULT FALSE,
   task_id    BIGINT      NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  user_id    BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(task_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS subtask_assignees (
+  id         BIGSERIAL   PRIMARY KEY,
+  subtask_id BIGINT      NOT NULL REFERENCES subtasks(id) ON DELETE CASCADE,
+  user_id    BIGINT      NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(subtask_id, user_id)
 );
 
 -- ============================================================

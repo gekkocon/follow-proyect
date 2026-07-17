@@ -117,6 +117,7 @@ export async function deleteProjectTask(
 type SubtaskInput = {
   title: string;
   status: DbSubtask['status'];
+  priority: DbSubtask['priority'];
   due_date?: string | null;
 };
 
