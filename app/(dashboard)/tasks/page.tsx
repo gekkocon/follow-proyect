@@ -10,6 +10,7 @@ export type SubtaskListItem = Pick<DbSubtask, 'id' | 'title' | 'status' | 'prior
 
 export type TaskListItem = TaskWithRelations & {
   subtasks: SubtaskListItem[];
+  assignees: Pick<DbUser, 'id' | 'name'>[];
 };
 
 async function getTasksData(): Promise<{
@@ -49,7 +50,7 @@ async function getTasksData(): Promise<{
 
   const taskIds = (tasks ?? []).map((t) => t.id);
 
-  const [{ data: subtasksRaw }, { data: subtaskAssigneesRaw }] = taskIds.length
+  const [{ data: subtasksRaw }, { data: subtaskAssigneesRaw }, { data: taskAssigneesRaw }] = taskIds.length
     ? await Promise.all([
         supabase
           .from('subtasks')
@@ -58,8 +59,12 @@ async function getTasksData(): Promise<{
         supabase
           .from('subtask_assignees')
           .select('subtask_id, user_id'),
+        supabase
+          .from('task_assignees')
+          .select('task_id, user_id')
+          .in('task_id', taskIds),
       ])
-    : [{ data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }];
 
   const userMap = Object.fromEntries((users ?? []).map((u) => [u.id, u]));
 
@@ -70,6 +75,15 @@ async function getTasksData(): Promise<{
     const list = assigneesBySubtask.get(sa.subtask_id) ?? [];
     list.push(u);
     assigneesBySubtask.set(sa.subtask_id, list);
+  }
+
+  const assigneesByTask = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
+  for (const ta of taskAssigneesRaw ?? []) {
+    const u = userMap[ta.user_id];
+    if (!u) continue;
+    const list = assigneesByTask.get(ta.task_id) ?? [];
+    list.push(u);
+    assigneesByTask.set(ta.task_id, list);
   }
 
   const subtasksByTask = new Map<number, SubtaskListItem[]>();
@@ -91,12 +105,18 @@ async function getTasksData(): Promise<{
     (projects ?? []).map((p) => [p.id, p])
   );
 
-  const tasksWithRelations: TaskListItem[] = (tasks ?? []).map((t) => ({
-    ...t,
-    project:  t.project_id  ? (projectMap[t.project_id]  ?? null) : null,
-    assignee: t.assignee_id ? (userMap[t.assignee_id]    ?? null) : null,
-    subtasks: subtasksByTask.get(t.id) ?? [],
-  }));
+  const tasksWithRelations: TaskListItem[] = (tasks ?? []).map((t) => {
+    const joinAssignees = assigneesByTask.get(t.id) ?? [];
+    // Fallback to legacy single assignee_id if the join table has no rows for this task
+    const legacyAssignee = t.assignee_id ? userMap[t.assignee_id] : undefined;
+    return {
+      ...t,
+      project:  t.project_id  ? (projectMap[t.project_id]  ?? null) : null,
+      assignee: t.assignee_id ? (userMap[t.assignee_id]    ?? null) : null,
+      subtasks: subtasksByTask.get(t.id) ?? [],
+      assignees: joinAssignees.length > 0 ? joinAssignees : (legacyAssignee ? [legacyAssignee] : []),
+    };
+  });
 
   return {
     tasks: tasksWithRelations,

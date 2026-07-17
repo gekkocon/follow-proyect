@@ -31,7 +31,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
   const filteredTasks = useMemo(() => tasks.filter((t) => {
     if (filters.status && t.status !== filters.status) return false;
     if (filters.priority && t.priority !== filters.priority) return false;
-    if (filters.assigneeId && String(t.assignee_id) !== filters.assigneeId) return false;
+    if (filters.assigneeId && !t.assignees.some((a) => String(a.id) === filters.assigneeId)) return false;
     return true;
   }), [tasks, filters]);
 
@@ -50,6 +50,10 @@ export function TasksClient({ initialTasks, users, error }: Props) {
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
+  }
+
+  function goToProject(projectId: number | null) {
+    if (projectId) router.push(`/projects/${projectId}`);
   }
 
   return (
@@ -84,8 +88,10 @@ export function TasksClient({ initialTasks, users, error }: Props) {
               return (
                 <div
                   key={task.id}
+                  onClick={() => goToProject(task.project_id)}
                   className={cn(
                     'rounded-xl border border-border bg-white p-4 shadow-sm space-y-3',
+                    task.project_id && 'cursor-pointer active:bg-muted/30',
                     task.status === 'done' && 'opacity-60'
                   )}
                 >
@@ -106,7 +112,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                   )}
 
                   {/* Status + date */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     <TaskStatusSelect taskId={task.id} status={task.status} onUpdate={handleStatusUpdate} />
                     {task.due_date && (
                       <span className={cn('inline-flex items-center gap-1 text-xs', isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
@@ -117,13 +123,13 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                     )}
                   </div>
 
-                  {/* Assignee */}
-                  {task.assignee && (
+                  {/* Assignees */}
+                  {task.assignees.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary shrink-0">
-                        {task.assignee.name.charAt(0)}
+                      <AssigneeAvatars users={task.assignees} max={3} />
+                      <span className="text-xs text-muted-foreground truncate">
+                        {task.assignees.map((a) => a.name).join(', ')}
                       </span>
-                      <span className="text-xs text-muted-foreground">{task.assignee.name}</span>
                     </div>
                   )}
 
@@ -134,7 +140,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
 
                   {/* Subtasks toggle + list */}
                   {hasSubtasks && (
-                    <div className="pt-1 border-t border-border">
+                    <div className="pt-1 border-t border-border" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => toggleExpand(task.id)}
                         className="flex items-center gap-1 text-xs text-muted-foreground font-medium min-h-[44px] w-full"
@@ -181,11 +187,19 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                     const isExpandable = hasBlockedReason || hasSubtasks;
                     const expanded = expandedIds.has(task.id);
                     const subtasksDone = task.subtasks.filter((s) => s.status === 'done').length;
+                    const clickable = !!task.project_id;
 
                     return (
                       <Fragment key={task.id}>
-                        <tr className={cn('group transition-colors hover:bg-muted/30', task.status === 'done' && 'opacity-60')}>
-                          <td className="px-4 py-3 w-6">
+                        <tr
+                          onClick={() => goToProject(task.project_id)}
+                          className={cn(
+                            'group transition-colors hover:bg-muted/30',
+                            clickable && 'cursor-pointer',
+                            task.status === 'done' && 'opacity-60'
+                          )}
+                        >
+                          <td className="px-4 py-3 w-6" onClick={(e) => e.stopPropagation()}>
                             {isExpandable ? (
                               <button onClick={() => toggleExpand(task.id)} className="text-muted-foreground hover:text-foreground">
                                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -195,13 +209,15 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                           <td className="px-4 py-3 max-w-[280px]">
                             <div className="flex items-start gap-1.5 min-w-0">
                               {(task.is_blocked || task.status === 'blocked') && <AlertOctagon size={13} className="mt-0.5 shrink-0 text-red-500" />}
-                              <span className={cn('truncate font-medium text-foreground', task.status === 'done' && 'line-through text-muted-foreground')}>
+                              <span className={cn('truncate font-medium text-foreground group-hover:text-primary transition-colors', task.status === 'done' && 'line-through text-muted-foreground')}>
                                 {task.title}
                               </span>
                             </div>
                             <div className="mt-0.5 flex flex-wrap gap-x-2 items-center md:hidden">
                               {task.project && <span className="text-xs text-muted-foreground">{task.project.name}</span>}
-                              {task.assignee && <span className="text-xs text-muted-foreground/70">· {task.assignee.name}</span>}
+                              {task.assignees.length > 0 && (
+                                <span className="text-xs text-muted-foreground/70">· {task.assignees.map((a) => a.name).join(', ')}</span>
+                              )}
                             </div>
                             {hasSubtasks && (
                               <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -213,16 +229,16 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                             {task.project ? <span className="truncate text-muted-foreground text-xs">{task.project.name}</span> : <span className="text-muted-foreground/50 text-xs">—</span>}
                           </td>
                           <td className="px-4 py-3 hidden lg:table-cell">
-                            {task.assignee ? (
+                            {task.assignees.length > 0 ? (
                               <div className="flex items-center gap-2">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary shrink-0">
-                                  {task.assignee.name.charAt(0)}
+                                <AssigneeAvatars users={task.assignees} max={3} />
+                                <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                                  {task.assignees.length === 1 ? task.assignees[0].name : `${task.assignees.length} responsables`}
                                 </span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[100px]">{task.assignee.name}</span>
                               </div>
                             ) : <span className="text-muted-foreground/50 text-xs">—</span>}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <TaskStatusSelect taskId={task.id} status={task.status} onUpdate={handleStatusUpdate} />
                           </td>
                           <td className="px-4 py-3 hidden sm:table-cell">
@@ -255,7 +271,11 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                         {expanded && hasSubtasks && task.subtasks.map((sub) => {
                           const subOverdue = sub.due_date && sub.status !== 'done' && isPast(parseISO(sub.due_date));
                           return (
-                            <tr key={sub.id} className="bg-muted/10 text-muted-foreground">
+                            <tr
+                              key={sub.id}
+                              onClick={() => goToProject(task.project_id)}
+                              className={cn('bg-muted/10 text-muted-foreground hover:bg-muted/20 transition-colors', clickable && 'cursor-pointer')}
+                            >
                               <td className="px-4 py-2 w-6" />
                               <td className="px-4 py-2 max-w-[280px]">
                                 <div className="flex items-center gap-1.5 min-w-0 pl-3">
