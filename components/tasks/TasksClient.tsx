@@ -4,24 +4,50 @@ import { useState, useMemo, useCallback, useTransition, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { isPast, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { AlertTriangle, AlertOctagon, ChevronDown, ChevronRight, CalendarDays } from 'lucide-react';
+import { AlertTriangle, AlertOctagon, ChevronDown, ChevronRight, CalendarDays, CornerDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { updateTaskStatus } from '@/src/lib/supabase/task-actions';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
+import { StatusBadge } from '@/components/projects/StatusBadge';
 import { TaskStatusSelect } from './TaskStatusSelect';
 import { TaskFilters, type TaskFiltersState } from './TaskFilters';
-import type { TaskWithRelations, DbTask, DbUser } from '@/src/lib/supabase/types';
+import type { DbTask, DbUser } from '@/src/lib/supabase/types';
+import type { TaskListItem } from '@/app/(dashboard)/tasks/page';
 
 type Props = {
-  initialTasks: TaskWithRelations[];
+  initialTasks: TaskListItem[];
   users: Pick<DbUser, 'id' | 'name'>[];
   error?: string | null;
 };
 
+function SubtasksList({ subtasks }: { subtasks: TaskListItem['subtasks'] }) {
+  return (
+    <div className="divide-y divide-border/60">
+      {subtasks.map((sub) => {
+        const subOverdue = sub.due_date && sub.status !== 'done' && isPast(parseISO(sub.due_date));
+        return (
+          <div key={sub.id} className="flex items-center gap-2 py-2 pl-2">
+            <CornerDownRight size={12} className="shrink-0 text-muted-foreground/50" />
+            <span className={cn('flex-1 min-w-0 truncate text-xs', sub.status === 'done' && 'line-through text-muted-foreground')}>
+              {sub.title}
+            </span>
+            <StatusBadge status={sub.status} className="text-[10px] py-0 px-1.5 shrink-0" />
+            {sub.due_date && (
+              <span className={cn('text-[10px] shrink-0', subOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
+                {format(parseISO(sub.due_date), 'd MMM', { locale: es })}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TasksClient({ initialTasks, users, error }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [tasks, setTasks] = useState<TaskWithRelations[]>(initialTasks);
+  const [tasks, setTasks] = useState<TaskListItem[]>(initialTasks);
   const [filters, setFilters] = useState<TaskFiltersState>({ status: '', priority: '', assigneeId: '' });
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
@@ -75,6 +101,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
             {filteredTasks.map((task) => {
               const isOverdue = task.due_date && task.status !== 'done' && isPast(parseISO(task.due_date));
               const isBlocked = task.is_blocked || task.status === 'blocked';
+              const hasSubtasks = task.subtasks.length > 0;
               const expanded = expandedIds.has(task.id);
 
               return (
@@ -125,14 +152,22 @@ export function TasksClient({ initialTasks, users, error }: Props) {
 
                   {/* Blocked reason */}
                   {isBlocked && task.blocked_reason && (
-                    <div>
-                      <button onClick={() => toggleExpand(task.id)} className="flex items-center gap-1 text-xs text-red-600 font-medium min-h-[44px]">
+                    <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{task.blocked_reason}</p>
+                  )}
+
+                  {/* Subtasks toggle + list */}
+                  {hasSubtasks && (
+                    <div className="pt-1 border-t border-border">
+                      <button
+                        onClick={() => toggleExpand(task.id)}
+                        className="flex items-center gap-1 text-xs text-muted-foreground font-medium min-h-[44px] w-full"
+                      >
                         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                        {expanded ? 'Ocultar motivo' : 'Ver motivo de bloqueo'}
+                        {task.subtasks.length} subtarea{task.subtasks.length > 1 ? 's' : ''}
+                        {' · '}
+                        {task.subtasks.filter((s) => s.status === 'done').length}/{task.subtasks.length} completadas
                       </button>
-                      {expanded && (
-                        <p className="mt-1 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{task.blocked_reason}</p>
-                      )}
+                      {expanded && <SubtasksList subtasks={task.subtasks} />}
                     </div>
                   )}
                 </div>
@@ -159,13 +194,16 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                   {filteredTasks.map((task) => {
                     const isOverdue = task.due_date && task.status !== 'done' && isPast(parseISO(task.due_date));
                     const hasBlockedReason = (task.is_blocked || task.status === 'blocked') && task.blocked_reason;
+                    const hasSubtasks = task.subtasks.length > 0;
+                    const isExpandable = hasBlockedReason || hasSubtasks;
                     const expanded = expandedIds.has(task.id);
+                    const subtasksDone = task.subtasks.filter((s) => s.status === 'done').length;
 
                     return (
                       <Fragment key={task.id}>
                         <tr className={cn('group transition-colors hover:bg-muted/30', task.status === 'done' && 'opacity-60')}>
                           <td className="px-4 py-3 w-6">
-                            {hasBlockedReason ? (
+                            {isExpandable ? (
                               <button onClick={() => toggleExpand(task.id)} className="text-muted-foreground hover:text-foreground">
                                 {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                               </button>
@@ -178,10 +216,15 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                                 {task.title}
                               </span>
                             </div>
-                            <div className="mt-0.5 flex flex-wrap gap-x-2 md:hidden">
+                            <div className="mt-0.5 flex flex-wrap gap-x-2 items-center md:hidden">
                               {task.project && <span className="text-xs text-muted-foreground">{task.project.name}</span>}
                               {task.assignee && <span className="text-xs text-muted-foreground/70">· {task.assignee.name}</span>}
                             </div>
+                            {hasSubtasks && (
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {subtasksDone}/{task.subtasks.length} subtareas completadas
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3 hidden md:table-cell max-w-[160px]">
                             {task.project ? <span className="truncate text-muted-foreground text-xs">{task.project.name}</span> : <span className="text-muted-foreground/50 text-xs">—</span>}
@@ -211,14 +254,17 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                             ) : <span className="text-muted-foreground/50 text-xs">—</span>}
                           </td>
                         </tr>
-                        {expanded && hasBlockedReason && (
-                          <tr className="bg-red-50/60">
+                        {expanded && (hasBlockedReason || hasSubtasks) && (
+                          <tr className="bg-muted/20">
                             <td />
                             <td colSpan={6} className="px-4 py-2">
-                              <div className="flex items-start gap-2 text-xs text-red-700">
-                                <AlertOctagon size={12} className="mt-0.5 shrink-0" />
-                                <span>{task.blocked_reason}</span>
-                              </div>
+                              {hasBlockedReason && (
+                                <div className="flex items-start gap-2 text-xs text-red-700 mb-2">
+                                  <AlertOctagon size={12} className="mt-0.5 shrink-0" />
+                                  <span>{task.blocked_reason}</span>
+                                </div>
+                              )}
+                              {hasSubtasks && <SubtasksList subtasks={task.subtasks} />}
                             </td>
                           </tr>
                         )}
