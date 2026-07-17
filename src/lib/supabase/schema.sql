@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS brand_settings (
   id              BIGSERIAL PRIMARY KEY,
   org_name        TEXT NOT NULL DEFAULT 'My Workspace',
   logo_url        TEXT,
+  favicon_url     TEXT,
   primary_color   TEXT NOT NULL DEFAULT '#6366F1',
   secondary_color TEXT NOT NULL DEFAULT '#8B5CF6',
   accent_color    TEXT NOT NULL DEFAULT '#EC4899',

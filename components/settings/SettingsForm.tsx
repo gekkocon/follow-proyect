@@ -25,6 +25,10 @@ const schema = z.object({
     (v) => v === '' || /^https?:\/\/.+/.test(v),
     { message: 'Debe ser una URL válida (https://...)' }
   ),
+  favicon_url:   z.string().refine(
+    (v) => v === '' || /^https?:\/\/.+/.test(v),
+    { message: 'Debe ser una URL válida (https://...)' }
+  ),
   primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color inválido'),
 });
 
@@ -54,6 +58,7 @@ export function SettingsForm({ initialBrand }: Props) {
     defaultValues: {
       org_name:      initialBrand?.org_name      ?? 'FEMCO',
       logo_url:      initialBrand?.logo_url       ?? '',
+      favicon_url:   initialBrand?.favicon_url    ?? '',
       primary_color: initialBrand?.primary_color  ?? '#2563EB',
     },
   });
@@ -68,10 +73,11 @@ export function SettingsForm({ initialBrand }: Props) {
       return;
     }
 
-    // Update Zustand so Sidebar reflects immediately
+    // Update Zustand so Sidebar / tab title / favicon reflect immediately
     setBrand({
       orgName:      values.org_name,
       logoUrl:      values.logo_url || null,
+      faviconUrl:   values.favicon_url || null,
       primaryColor: values.primary_color,
     });
 
@@ -115,6 +121,34 @@ export function SettingsForm({ initialBrand }: Props) {
           )}
           <p className="mt-1 text-xs text-muted-foreground">
             URL pública de imagen. Subida de archivos — fase posterior.
+          </p>
+        </div>
+
+        {/* Favicon URL */}
+        <div>
+          <label className={labelClass}>URL del favicon <span className="text-muted-foreground font-normal">(opcional)</span></label>
+          <div className="flex items-center gap-3">
+            {watch('favicon_url') && /^https?:\/\/.+/.test(watch('favicon_url')) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={watch('favicon_url')}
+                alt="Favicon preview"
+                className="h-8 w-8 rounded border border-border object-contain shrink-0"
+              />
+            )}
+            <input
+              {...register('favicon_url')}
+              type="url"
+              placeholder="https://ejemplo.com/favicon.png"
+              className={inputClass}
+              disabled={isSubmitting}
+            />
+          </div>
+          {errors.favicon_url && (
+            <p className="mt-1 text-xs text-red-600">{errors.favicon_url.message}</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Se usa como ícono de la pestaña del navegador. Recomendado: imagen cuadrada (PNG/ICO/SVG).
           </p>
         </div>
       </section>

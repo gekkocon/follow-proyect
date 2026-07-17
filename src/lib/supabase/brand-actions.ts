@@ -7,6 +7,7 @@ export type DbBrandSettings = {
   id: number;
   org_name: string;
   logo_url: string | null;
+  favicon_url: string | null;
   primary_color: string;
   secondary_color: string;
   accent_color: string;
@@ -18,6 +19,7 @@ export type DbBrandSettings = {
 export type BrandFormValues = {
   org_name: string;
   logo_url: string;
+  favicon_url: string;
   primary_color: string;
 };
 
@@ -45,6 +47,7 @@ export async function saveBrandSettings(
   const payload = {
     org_name:      values.org_name.trim(),
     logo_url:      values.logo_url.trim() || null,
+    favicon_url:   values.favicon_url.trim() || null,
     primary_color: values.primary_color,
   };
 
