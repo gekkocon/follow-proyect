@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   ChevronRight,
   AlertOctagon,
@@ -26,6 +25,7 @@ import {
   updateProjectSubtask,
   deleteProjectSubtask,
 } from '@/src/lib/supabase/project-task-actions';
+import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type {
   TaskWithFullRelations,
   SubtaskWithAssignees,
@@ -33,25 +33,6 @@ import type {
   DbSubtask,
   DbUser,
 } from '@/src/lib/supabase/types';
-
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
-
-const TASK_STATUSES: { value: DbTask['status']; label: string }[] = [
-  { value: 'todo', label: 'Por hacer' },
-  { value: 'in_progress', label: 'En progreso' },
-  { value: 'in_review', label: 'En revisión' },
-  { value: 'done', label: 'Finalizada' },
-  { value: 'blocked', label: 'Bloqueada' },
-];
-
-const TASK_PRIORITIES: { value: DbTask['priority']; label: string }[] = [
-  { value: 'low', label: 'Baja' },
-  { value: 'medium', label: 'Media' },
-  { value: 'high', label: 'Alta' },
-  { value: 'critical', label: 'Crítica' },
-];
 
 // ─────────────────────────────────────────────
 // SubtaskRow
@@ -75,8 +56,6 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-  const router = useRouter();
 
   const isOverdue =
     subtask.due_date &&
@@ -102,7 +81,7 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
     setSaving(false);
     if (!error) {
       setEditing(false);
-      startTransition(() => router.refresh());
+      onRefresh();
     } else {
       setSaveError(error);
     }
@@ -113,21 +92,18 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
     const { error } = await deleteProjectSubtask(subtask.id, projectId);
     if (!error) {
       onRefresh();
-      startTransition(() => router.refresh());
     }
   }
 
   async function toggleComplete() {
     const newStatus: DbSubtask['status'] = subtask.completed ? 'todo' : 'done';
-    startTransition(async () => {
-      await updateProjectSubtask(
-        subtask.id,
-        projectId,
-        { status: newStatus },
-        subtask.assignees.map((a) => a.id)
-      );
-      router.refresh();
-    });
+    await updateProjectSubtask(
+      subtask.id,
+      projectId,
+      { status: newStatus },
+      subtask.assignees.map((a) => a.id)
+    );
+    onRefresh();
   }
 
   if (editing) {
@@ -305,8 +281,6 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-  const router = useRouter();
 
   async function save() {
     if (!form.title.trim()) return;
@@ -321,7 +295,6 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
     setSaving(false);
     if (!error) {
       onSaved();
-      startTransition(() => router.refresh());
     } else {
       setSaveError(error);
     }
@@ -406,9 +379,10 @@ type TaskRowProps = {
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
   onDelete: (taskId: number) => void;
+  onRefresh: () => void;
 };
 
-export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
+export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRowProps) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showNewSubtask, setShowNewSubtask] = useState(false);
@@ -423,8 +397,6 @@ export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-  const router = useRouter();
 
   const isOverdue =
     task.due_date &&
@@ -454,7 +426,7 @@ export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
     setSaving(false);
     if (!error) {
       setEditing(false);
-      startTransition(() => router.refresh());
+      onRefresh();
     } else {
       setSaveError(error);
     }
@@ -469,7 +441,6 @@ export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
     const { error } = await deleteProjectTask(task.id, projectId);
     if (!error) {
       onDelete(task.id);
-      startTransition(() => router.refresh());
     } else {
       alert(error);
     }
@@ -680,7 +651,7 @@ export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
               subtask={sub}
               users={users}
               projectId={projectId}
-              onRefresh={() => startTransition(() => router.refresh())}
+              onRefresh={onRefresh}
             />
           ))}
 
@@ -689,7 +660,10 @@ export function TaskRow({ task, users, projectId, onDelete }: TaskRowProps) {
               taskId={task.id}
               projectId={projectId}
               users={users}
-              onSaved={() => setShowNewSubtask(false)}
+              onSaved={() => {
+                setShowNewSubtask(false);
+                onRefresh();
+              }}
               onCancel={() => setShowNewSubtask(false)}
             />
           ) : (

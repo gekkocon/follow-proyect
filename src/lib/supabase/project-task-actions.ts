@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from './server';
-import type { DbTask, DbSubtask } from './types';
+import type { DbTask, DbSubtask, DbUser, TaskWithFullRelations, SubtaskWithAssignees } from './types';
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -44,7 +44,10 @@ type TaskInput = {
   title: string;
   status: DbTask['status'];
   priority: DbTask['priority'];
+  description?: string | null;
+  start_date?: string | null;
   due_date?: string | null;
+  estimated_cost?: number | null;
   is_blocked?: boolean;
   blocked_reason?: string | null;
 };
@@ -118,7 +121,10 @@ type SubtaskInput = {
   title: string;
   status: DbSubtask['status'];
   priority: DbSubtask['priority'];
+  description?: string | null;
+  start_date?: string | null;
   due_date?: string | null;
+  estimated_cost?: number | null;
 };
 
 export async function createProjectSubtask(
@@ -172,4 +178,70 @@ export async function deleteProjectSubtask(
 
   revalidatePath(`/projects/${projectId}`);
   return { error: null };
+}
+
+// ─────────────────────────────────────────────
+// FULL REFRESH (used by the client after any create/update/import
+// instead of relying solely on router.refresh(), which raced with the
+// DB write and could leave newly-created subtasks invisible until a
+// manual reload)
+// ─────────────────────────────────────────────
+
+export async function getProjectTasksFull(projectId: number): Promise<TaskWithFullRelations[]> {
+  const supabase = createServerClient();
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true });
+
+  if (!tasks?.length) return [];
+
+  const taskIds = tasks.map((t) => t.id);
+
+  const [{ data: taskAssigneeRows }, { data: subtasks }] = await Promise.all([
+    supabase
+      .from('task_assignees')
+      .select('task_id, users(id, name)')
+      .in('task_id', taskIds),
+    supabase
+      .from('subtasks')
+      .select('*')
+      .in('task_id', taskIds)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  const subtaskIds = (subtasks ?? []).map((s) => s.id);
+  const { data: subtaskAssigneeRows } = subtaskIds.length
+    ? await supabase
+        .from('subtask_assignees')
+        .select('subtask_id, users(id, name)')
+        .in('subtask_id', subtaskIds)
+    : { data: [] };
+
+  const enrichedSubtasks: SubtaskWithAssignees[] = (subtasks ?? []).map((s) => ({
+    ...s,
+    status: s.status ?? 'todo',
+    due_date: s.due_date ?? null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    assignees: (subtaskAssigneeRows ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((r: any) => r.subtask_id === s.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => r.users)
+      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
+  }));
+
+  return tasks.map((t) => ({
+    ...t,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    assignees: (taskAssigneeRows ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((r: any) => r.task_id === t.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => r.users)
+      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
+    subtasks: enrichedSubtasks.filter((s) => s.task_id === t.id),
+  }));
 }

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, Save, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Save, X, Upload } from 'lucide-react';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
-import { createProjectTask } from '@/src/lib/supabase/project-task-actions';
+import { ImportTasksPanel } from './ImportTasksPanel';
+import { createProjectTask, getProjectTasksFull } from '@/src/lib/supabase/project-task-actions';
+import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type { TaskWithFullRelations, DbTask, DbUser } from '@/src/lib/supabase/types';
 
 // ─────────────────────────────────────────────
@@ -19,21 +20,6 @@ type NewTaskRowProps = {
   onCancel: () => void;
 };
 
-const TASK_STATUSES: { value: DbTask['status']; label: string }[] = [
-  { value: 'todo', label: 'Por hacer' },
-  { value: 'in_progress', label: 'En progreso' },
-  { value: 'in_review', label: 'En revisión' },
-  { value: 'done', label: 'Finalizada' },
-  { value: 'blocked', label: 'Bloqueada' },
-];
-
-const TASK_PRIORITIES: { value: DbTask['priority']; label: string }[] = [
-  { value: 'low', label: 'Baja' },
-  { value: 'medium', label: 'Media' },
-  { value: 'high', label: 'Alta' },
-  { value: 'critical', label: 'Crítica' },
-];
-
 function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
   const [form, setForm] = useState({
     title: '',
@@ -44,8 +30,6 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-  const router = useRouter();
 
   async function save() {
     if (!form.title.trim()) return;
@@ -64,7 +48,6 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
     setSaving(false);
     if (!error) {
       onSaved();
-      startTransition(() => router.refresh());
     } else {
       setSaveError(error);
     }
@@ -165,11 +148,21 @@ type Props = {
 export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
   const [tasks, setTasks] = useState<TaskWithFullRelations[]>(initialTasks);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
-  // Sync when server re-renders after router.refresh()
+  // Sync when the parent Server Component re-fetches (e.g. first load / navigation)
   useEffect(() => {
     setTasks(initialTasks);
   }, [initialTasks]);
+
+  // Re-fetches the full task list with all relations and replaces local state directly.
+  // Used instead of router.refresh() everywhere below, which raced with the DB write
+  // (revalidatePath + client re-render could resolve before the insert's effects were
+  // visible to the next read) and left new subtasks invisible until a manual reload.
+  async function refresh() {
+    const fresh = await getProjectTasksFull(projectId);
+    setTasks(fresh);
+  }
 
   function handleDelete(taskId: number) {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
@@ -183,15 +176,26 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
           Tareas{' '}
           <span className="text-muted-foreground font-normal text-sm">({tasks.length})</span>
         </h2>
-        {!showNewTask && (
-          <button
-            onClick={() => setShowNewTask(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-          >
-            <Plus size={14} />
-            Nueva tarea
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!showNewTask && (
+            <button
+              onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Upload size={14} />
+              Importar tareas
+            </button>
+          )}
+          {!showNewTask && (
+            <button
+              onClick={() => setShowNewTask(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Plus size={14} />
+              Nueva tarea
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Task list */}
@@ -204,7 +208,12 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
               className="text-primary hover:underline"
             >
               Crear la primera
+            </button>{' '}
+            o{' '}
+            <button onClick={() => setShowImport(true)} className="text-primary hover:underline">
+              importar varias
             </button>
+            .
           </p>
         </div>
       ) : (
@@ -216,6 +225,7 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
               users={users}
               projectId={projectId}
               onDelete={handleDelete}
+              onRefresh={refresh}
             />
           ))}
 
@@ -223,11 +233,26 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
             <NewTaskRow
               projectId={projectId}
               users={users}
-              onSaved={() => setShowNewTask(false)}
+              onSaved={() => {
+                setShowNewTask(false);
+                refresh();
+              }}
               onCancel={() => setShowNewTask(false)}
             />
           )}
         </div>
+      )}
+
+      {showImport && (
+        <ImportTasksPanel
+          projectId={projectId}
+          existingTitles={tasks.map((t) => t.title)}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            refresh();
+          }}
+        />
       )}
     </div>
   );

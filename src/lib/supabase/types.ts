@@ -25,6 +25,7 @@ export type DbProject = {
   updated_at: string;
 };
 
+// Fase 7: start_date, estimated_cost, dependencies added for bulk import
 export type DbTask = {
   id: number;
   title: string;
@@ -35,20 +36,28 @@ export type DbTask = {
   assignee_id: number | null;
   is_blocked: boolean;
   blocked_reason: string | null;
+  start_date: string | null;
   due_date: string | null;
+  estimated_cost: number | null;
+  dependencies: number[];
   created_at: string;
   updated_at: string;
 };
 
 // Fase 5E: subtasks extended with status and due_date
 // Fase 6B+: priority added
+// Fase 7: description, start_date, estimated_cost, dependencies added for bulk import
 export type DbSubtask = {
   id: number;
   title: string;
+  description: string | null;
   completed: boolean;
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'critical';
+  start_date: string | null;
   due_date: string | null;
+  estimated_cost: number | null;
+  dependencies: number[];
   task_id: number;
   created_at: string;
 };

@@ -4,6 +4,7 @@ import { ChevronLeft, CalendarDays, User } from 'lucide-react';
 import { format, isPast, parseISO, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createServerClient } from '@/src/lib/supabase/server';
+import { getProjectTasksFull } from '@/src/lib/supabase/project-task-actions';
 import { StatusBadge } from '@/components/projects/StatusBadge';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
 import { ProgressBar } from '@/components/projects/ProgressBar';
@@ -16,8 +17,6 @@ import type {
   DbProject,
   DbUser,
   ProjectWithRelations,
-  TaskWithFullRelations,
-  SubtaskWithAssignees,
 } from '@/src/lib/supabase/types';
 
 // ─────────────────────────────────────────────
@@ -46,69 +45,6 @@ async function getProject(
     : null;
 
   return { ...data, owner };
-}
-
-async function getTasks(projectId: number): Promise<TaskWithFullRelations[]> {
-  const supabase = createServerClient();
-
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true });
-
-  if (!tasks?.length) return [];
-
-  const taskIds = tasks.map((t) => t.id);
-
-  // Fetch task assignees and subtasks in parallel
-  const [{ data: taskAssigneeRows }, { data: subtasks }] = await Promise.all([
-    supabase
-      .from('task_assignees')
-      .select('task_id, users(id, name)')
-      .in('task_id', taskIds),
-    supabase
-      .from('subtasks')
-      .select('*')
-      .in('task_id', taskIds)
-      .order('created_at', { ascending: true }),
-  ]);
-
-  // Fetch subtask assignees if there are subtasks
-  const subtaskIds = (subtasks ?? []).map((s) => s.id);
-  const { data: subtaskAssigneeRows } = subtaskIds.length
-    ? await supabase
-        .from('subtask_assignees')
-        .select('subtask_id, users(id, name)')
-        .in('subtask_id', subtaskIds)
-    : { data: [] };
-
-  // Build SubtaskWithAssignees
-  const enrichedSubtasks: SubtaskWithAssignees[] = (subtasks ?? []).map((s) => ({
-    ...s,
-    status: s.status ?? 'todo',
-    due_date: s.due_date ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assignees: (subtaskAssigneeRows ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.subtask_id === s.id)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => r.users)
-      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
-  }));
-
-  // Build TaskWithFullRelations
-  return tasks.map((t) => ({
-    ...t,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assignees: (taskAssigneeRows ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.task_id === t.id)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => r.users)
-      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
-    subtasks: enrichedSubtasks.filter((s) => s.task_id === t.id),
-  }));
 }
 
 async function getActiveUsers(): Promise<Pick<DbUser, 'id' | 'name'>[]> {
@@ -146,7 +82,7 @@ export default async function ProjectDetailPage({
   const activeUser = await getActiveUser();
   const [project, tasks, activeUsers, allUsers, members] = await Promise.all([
     getProject(id),
-    getTasks(id),
+    getProjectTasksFull(id),
     getActiveUsers(),
     getAllUsers(),
     getProjectMembers(id),
