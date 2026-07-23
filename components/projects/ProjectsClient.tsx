@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { useProjectStore } from '@/src/store/projectStore';
@@ -33,13 +33,19 @@ export function ProjectsClient({ initialProjects, users, error }: Props) {
   } = useProjectStore();
 
   const projects = initialProjects;
+  const [cascadeTarget, setCascadeTarget] = useState<{ id: number; taskCount: number } | null>(null);
 
-  async function handleDelete(id: number) {
-    const result = await deleteProject(id);
+  async function handleDelete(id: number, force = false) {
+    const result = await deleteProject(id, force);
     if (result.error) {
+      if (result.hasTasksError) {
+        setCascadeTarget({ id, taskCount: result.taskCount ?? 0 });
+        return;
+      }
       setDeleteError(result.error);
       return;
     }
+    setCascadeTarget(null);
     setConfirmDeleteId(null);
     startTransition(() => router.refresh());
   }
@@ -123,7 +129,7 @@ export function ProjectsClient({ initialProjects, users, error }: Props) {
                   <Pencil size={12} />
                 </button>
                 <button
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(project.id); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCascadeTarget(null); setConfirmDeleteId(project.id); }}
                   className="flex h-7 w-7 items-center justify-center rounded-md bg-white border border-border text-muted-foreground hover:text-red-600 hover:border-red-200 shadow-sm transition-colors"
                   title="Eliminar proyecto"
                 >
@@ -135,31 +141,64 @@ export function ProjectsClient({ initialProjects, users, error }: Props) {
               {confirmDeleteId === project.id && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-white/97 backdrop-blur-sm border border-red-200 z-20 p-5">
                   <AlertTriangle size={22} className="text-red-500 shrink-0" />
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-foreground">¿Eliminar proyecto?</p>
-                    <p className="text-xs text-muted-foreground mt-1">Esta acción no se puede deshacer.</p>
-                  </div>
 
-                  {deleteError && (
-                    <p className="text-xs text-red-700 text-center px-2">{deleteError}</p>
+                  {cascadeTarget?.id === project.id ? (
+                    <>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-foreground">
+                          Este proyecto tiene {cascadeTarget.taskCount} tarea{cascadeTarget.taskCount !== 1 ? 's' : ''} asociada{cascadeTarget.taskCount !== 1 ? 's' : ''}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Eliminarlo también eliminará esas tareas y sus subtareas. Esta acción no se puede deshacer.
+                        </p>
+                      </div>
+                      {deleteError && (
+                        <p className="text-xs text-red-700 text-center px-2">{deleteError}</p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setCascadeTarget(null); setConfirmDeleteId(null); }}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(project.id, true)}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                        >
+                          Eliminar proyecto y tareas
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-foreground">¿Eliminar proyecto?</p>
+                        <p className="text-xs text-muted-foreground mt-1">Esta acción no se puede deshacer.</p>
+                      </div>
+
+                      {deleteError && (
+                        <p className="text-xs text-red-700 text-center px-2">{deleteError}</p>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setConfirmDeleteId(null); }}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        {!deleteError && (
+                          <button
+                            onClick={() => handleDelete(project.id)}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                          >
+                            Sí, eliminar
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => { setConfirmDeleteId(null); }}
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    {!deleteError && (
-                      <button
-                        onClick={() => handleDelete(project.id)}
-                        className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
-                      >
-                        Sí, eliminar
-                      </button>
-                    )}
-                  </div>
                 </div>
               )}
             </div>

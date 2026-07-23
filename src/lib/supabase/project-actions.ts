@@ -97,26 +97,56 @@ export async function updateProject(
 }
 
 export async function deleteProject(
-  id: number
-): Promise<{ error: string | null; hasTasksError?: boolean }> {
+  id: number,
+  force = false
+): Promise<{ error: string | null; hasTasksError?: boolean; taskCount?: number }> {
   const supabase = createServerClient();
 
-  const { data: tasks } = await supabase
+  const { count } = await supabase
     .from('tasks')
-    .select('id')
-    .eq('project_id', id)
-    .limit(1);
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', id);
 
-  if (tasks && tasks.length > 0) {
+  const taskCount = count ?? 0;
+
+  if (taskCount > 0 && !force) {
     return {
-      error: 'Este proyecto tiene tareas asociadas. Elimina las tareas primero antes de eliminar el proyecto.',
+      error: 'Este proyecto tiene tareas asociadas.',
       hasTasksError: true,
+      taskCount,
     };
   }
+
+  if (force && taskCount > 0) {
+    const { data: taskRows } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('project_id', id);
+    const taskIds = (taskRows ?? []).map((t) => t.id);
+
+    if (taskIds.length > 0) {
+      const { data: subtaskRows } = await supabase
+        .from('subtasks')
+        .select('id')
+        .in('task_id', taskIds);
+      const subtaskIds = (subtaskRows ?? []).map((s) => s.id);
+
+      if (subtaskIds.length > 0) {
+        await supabase.from('subtask_assignees').delete().in('subtask_id', subtaskIds);
+        await supabase.from('subtasks').delete().in('task_id', taskIds);
+      }
+
+      await supabase.from('task_assignees').delete().in('task_id', taskIds);
+      await supabase.from('tasks').delete().eq('project_id', id);
+    }
+  }
+
+  await supabase.from('project_members').delete().eq('project_id', id);
 
   const { error } = await supabase.from('projects').delete().eq('id', id);
   if (error) return { error: error.message };
 
   revalidatePath('/projects');
+  revalidatePath('/tasks');
   return { error: null };
 }
