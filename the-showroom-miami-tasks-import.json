@@ -1,0 +1,668 @@
+{
+  "project": {
+    "name": "The Showroom Miami - Plan de Trabajo",
+    "description": "Plan estratégico por fases para reducir riesgo legal, activar medición, captar leads y escalar líneas de negocio.",
+    "status": "planning",
+    "priority": "high",
+    "owner": "Johnny Hoyos",
+    "start_date": null,
+    "due_date": null
+  },
+  "metadata": {
+    "source": "Plan_de_Trabajo_The_Showroom_Miami.pdf",
+    "prepared_for": "Enso dashboard bulk import",
+    "date_fields_optional": true,
+    "priority_values": {
+      "Baja": "low",
+      "Media": "medium",
+      "Alta": "high",
+      "Critica": "critical"
+    },
+    "status_values": {
+      "Pendiente": "todo",
+      "Por hacer": "todo",
+      "En progreso": "in_progress",
+      "En revision": "review",
+      "Finalizada": "done",
+      "Bloqueada": "blocked"
+    }
+  },
+  "tasks": [
+    {
+      "title": "Fase 0 - Corregir riesgo legal del sitio web",
+      "description": "KPI / criterio de exito: Cero frases de alto riesgo legal publicadas; registro FDACS visible.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Eliminar frases absolutas de alto riesgo (we accept ALL insurance, we handle all paperwork, 15-minute towing)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Incluir numero de registro FDACS en el sitio (footer y paginas de servicio)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Eliminar frases absolutas de alto riesgo",
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Agregar disclaimer de cobertura de towing (no incluye highway)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Redactar/publicar politica de privacidad y aviso de grabacion de llamadas",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Tercero legal",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$150-300 una vez"
+        },
+        {
+          "title": "Revisar resenas/cifras mostradas en la web (verificar que sean reales o retirarlas)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 0 - Implementar tracking y medicion",
+      "description": "KPI / criterio de exito: GA4, Search Console, call tracking y CAPI activos y validados con datos reales.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Instalar Google Analytics 4 en el sitio",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Verificar el dominio en Google Search Console",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Contratar e instalar call tracking (ej. CallRail)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "~$45/mes"
+        },
+        {
+          "title": "Instalar Meta Pixel + Conversion API (CAPI)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0 config."
+        }
+      ]
+    },
+    {
+      "title": "Fase 0 - Optimizar Google Business Profile (GBP)",
+      "description": "KPI / criterio de exito: Perfil reclamado, verificado, con flujo de resenas activo.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Reclamar/verificar el perfil de Google Business Profile",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Cargar fotos reales de trabajos (antes/despues) por linea de negocio",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Definir y lanzar plan de solicitud de resenas post-servicio",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Calendario de publicaciones semanales en GBP",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Cargar fotos reales de trabajos",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 0 - Preparar cuentas publicitarias",
+      "description": "KPI / criterio de exito: Cuentas verificadas y listas para lanzar campanas en Fase 1.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Configurar Meta Business Manager (paginas, catalogos, roles)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Crear cuenta de Google Ads y estructura de campanas",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 0 - Implementar tracking y medicion",
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Solicitar verificacion para Google Local Services Ads (licencia y seguro)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 1 - Lanzar Google LSA + Search (Collision y Towing)",
+      "description": "KPI / criterio de exito: CPL Collision menor a $75; contestacion de llamadas mayor a 90%.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Configurar y lanzar Local Services Ads (Google Guaranteed)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 0 - Preparar cuentas publicitarias",
+          "estimated_cost": "Incluido en pauta"
+        },
+        {
+          "title": "Configurar campanas Search por servicio con negative keywords",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 0 - Preparar cuentas publicitarias",
+          "estimated_cost": "$1,000-1,200/mes"
+        },
+        {
+          "title": "Crear landing dedicada por servicio (Collision, Towing)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Tercero / IA",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0-300 una vez"
+        }
+      ]
+    },
+    {
+      "title": "Fase 1 - Activar contenido organico y resenas",
+      "description": "KPI / criterio de exito: Publicacion consistente; crecimiento sostenido de resenas en GBP.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Plan de contenido mensual (Reels/TikTok de trabajos reales, antes/despues)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Grabacion y edicion de contenido en taller",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Liza / IA",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0-50/mes"
+        },
+        {
+          "title": "Seguimiento activo de solicitud de resenas por cliente entregado",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 0 - Optimizar Google Business Profile (GBP)",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 1 - Implementar WhatsApp Business + chatbot ligero",
+      "description": "KPI / criterio de exito: Primer contacto automatizado con transferencia a humano.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Configurar WhatsApp Business API",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "Incluido abajo"
+        },
+        {
+          "title": "Disenar flujo de calificacion de leads (datos del caso) con IA",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$50-100/mes"
+        },
+        {
+          "title": "Definir protocolo de transferencia a humano (Liza / call center)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza / Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Disenar flujo de calificacion de leads",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 1 - Implementar ERP / sistema de gestion (Tekmetric o Shopmonkey)",
+      "description": "KPI / criterio de exito: 100% de vehiculos en Collision con estado visible por fase.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Evaluar y contratar Tekmetric o Shopmonkey",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$179-250/mes"
+        },
+        {
+          "title": "Migrar/registrar flujo de ordenes de trabajo de Collision",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Evaluar y contratar Tekmetric o Shopmonkey",
+          "estimated_cost": "Incluido"
+        },
+        {
+          "title": "Configurar portal de estado/avance visible al cliente",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Migrar/registrar flujo de ordenes de trabajo de Collision",
+          "estimated_cost": "Incluido"
+        }
+      ]
+    },
+    {
+      "title": "Fase 2 - Lanzar Meta Ads (Advantage+ Leads) para Wrap/PPF/Rentals",
+      "description": "KPI / criterio de exito: ROAS positivo por linea antes de escalar presupuesto.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Producir creativos de video (antes/despues, demos de acabados)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza / Tercero",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 1 - Activar contenido organico y resenas",
+          "estimated_cost": "$0-200 una vez"
+        },
+        {
+          "title": "Configurar campanas Advantage+ Leads con CAPI",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 0 - Implementar tracking y medicion",
+          "estimated_cost": "$400-600/mes"
+        },
+        {
+          "title": "Validar con $500-1,000 antes de escalar presupuesto por linea",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Configurar campanas Advantage+ Leads con CAPI",
+          "estimated_cost": "Incluido"
+        }
+      ]
+    },
+    {
+      "title": "Fase 2 - Landings por servicio + SEO local",
+      "description": "KPI / criterio de exito: Paginas indexadas y posicionando por ciudad/servicio.",
+      "status": "todo",
+      "priority": "medium",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Crear landing por servicio (Wrap, PPF, Tint, Rentals, Custom Builds)",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Tercero / IA",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 1 - Lanzar Google LSA + Search (Collision y Towing)",
+          "estimated_cost": "$0-400 una vez"
+        },
+        {
+          "title": "Iniciar blog con contenido de intencion (SEO + GEO/AEO)",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "IA / Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$20-40/mes IA"
+        },
+        {
+          "title": "Estructurar primeras paginas por ciudad (Miami, Fort Lauderdale, Boca Raton)",
+          "status": "todo",
+          "priority": "low",
+          "owner": "Tercero",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Crear landing por servicio",
+          "estimated_cost": "$0-300 una vez"
+        }
+      ]
+    },
+    {
+      "title": "Fase 2 - Formalizar alianzas offline",
+      "description": "KPI / criterio de exito: Al menos 3 alianzas activas generando referidos medibles.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Mapear y contactar dealerships de lujo, abogados de accidentes y concierges",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Definir acuerdo de referidos (formal o informal) con cada aliado",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Mapear y contactar dealerships de lujo, abogados de accidentes y concierges",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 2 - Piloto de agente de voz para recepcion 24/7",
+      "description": "KPI / criterio de exito: Resolucion mayor a 70% en piloto de 100 llamadas antes de escalar.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Configurar piloto con Vapi o Retell en un numero de prueba",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 1 - Implementar WhatsApp Business + chatbot ligero",
+          "estimated_cost": "$60-150 piloto"
+        },
+        {
+          "title": "Evaluar resultados del piloto (100 llamadas) antes de contratar plan mensual",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Configurar piloto con Vapi o Retell en un numero de prueba",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 3 - Integrar CRM central + automatizaciones",
+      "description": "KPI / criterio de exito: Flujo web -> CRM -> ERP -> notificacion funcionando sin intervencion manual.",
+      "status": "todo",
+      "priority": "medium",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Seleccionar e implementar CRM central (HubSpot o Zoho)",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 1 - Implementar ERP / sistema de gestion",
+          "estimated_cost": "$0-50/mes"
+        },
+        {
+          "title": "Conectar formularios web, WhatsApp y ERP via n8n/Make",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Seleccionar e implementar CRM central",
+          "estimated_cost": "$20-50/mes"
+        }
+      ]
+    },
+    {
+      "title": "Fase 3 - Programa de referidos y UGC estructurado",
+      "description": "KPI / criterio de exito: Flujo de UGC con disclosures FTC cumpliendo normativa.",
+      "status": "todo",
+      "priority": "medium",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Disenar programa de referidos para clientes existentes",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Liza",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Definir lineamientos de UGC/influencers con disclosure FTC",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi / Tercero legal",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0-200 una vez"
+        }
+      ]
+    },
+    {
+      "title": "Fase 3 - Preparar arquitectura multi-ciudad/condado",
+      "description": "KPI / criterio de exito: Plantilla replicable de web, GBP y campanas lista para nueva ubicacion.",
+      "status": "todo",
+      "priority": "medium",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Documentar checklist de cumplimiento por condado/estado (licencias, towing, repair act)",
+          "status": "todo",
+          "priority": "medium",
+          "owner": "Hikashi / Tercero legal",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": null,
+          "estimated_cost": "$0-300 una vez"
+        },
+        {
+          "title": "Crear plantilla de landing y GBP replicable por ciudad",
+          "status": "todo",
+          "priority": "low",
+          "owner": "Tercero / IA",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Fase 2 - Landings por servicio + SEO local",
+          "estimated_cost": "$0"
+        }
+      ]
+    },
+    {
+      "title": "Fase 3 - Evaluacion de expansion a Broward/Palm Beach",
+      "description": "KPI / criterio de exito: Decision informada de abrir o no segunda ubicacion, con datos de 3 meses de margen positivo.",
+      "status": "todo",
+      "priority": "high",
+      "owner": null,
+      "start_date": null,
+      "due_date": null,
+      "subtasks": [
+        {
+          "title": "Analizar metricas y margen de la operacion actual (minimo 3 meses consistentes)",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Todas las fases previas",
+          "estimated_cost": "$0"
+        },
+        {
+          "title": "Presentar recomendacion de expansion al dueno",
+          "status": "todo",
+          "priority": "high",
+          "owner": "Liza / Hikashi",
+          "start_date": null,
+          "due_date": null,
+          "depends_on": "Analizar metricas y margen de la operacion actual",
+          "estimated_cost": "$0"
+        }
+      ]
+    }
+  ]
+}

@@ -26,6 +26,7 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
     status: 'todo' as DbTask['status'],
     priority: 'medium' as DbTask['priority'],
     due_date: '',
+    description: '',
     assigneeIds: [] as number[],
   });
   const [saving, setSaving] = useState(false);
@@ -42,6 +43,7 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
         status: form.status,
         priority: form.priority,
         due_date: form.due_date || null,
+        description: form.description.trim() || null,
       },
       form.assigneeIds
     );
@@ -126,6 +128,15 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
           </button>
         </div>
       </div>
+
+      <textarea
+        value={form.description}
+        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+        className="w-full rounded-md border border-border px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+        placeholder="Observaciones (opcional)…"
+        rows={2}
+      />
+
       {saveError && (
         <p className="mx-3 mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
           {saveError}

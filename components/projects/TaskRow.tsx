@@ -52,6 +52,7 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
     status: subtask.status,
     priority: subtask.priority,
     due_date: subtask.due_date ?? '',
+    description: subtask.description ?? '',
     assigneeIds: subtask.assignees.map((a) => a.id),
   });
   const [saving, setSaving] = useState(false);
@@ -75,6 +76,7 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
         status: form.status as DbSubtask['status'],
         priority: form.priority as DbSubtask['priority'],
         due_date: form.due_date || null,
+        description: form.description.trim() || null,
       },
       form.assigneeIds
     );
@@ -170,6 +172,15 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
           <X size={12} />
         </button>
         </div>
+        <div className="px-5 pb-2.5">
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            className="w-full rounded-md border border-border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-white resize-y"
+            placeholder="Observaciones (opcional)…"
+            rows={2}
+          />
+        </div>
         {saveError && (
           <p className="px-5 pb-2 text-[10px] text-red-600">{saveError}</p>
         )}
@@ -178,12 +189,12 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
   }
 
   return (
-    <div className="group flex items-center gap-3 px-5 py-2.5 border-t border-border hover:bg-muted/20 transition-colors">
+    <div className="group flex items-start gap-3 px-5 py-2.5 border-t border-border hover:bg-muted/20 transition-colors">
       {/* Checkbox quick-complete */}
       <button
         onClick={toggleComplete}
         className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+          'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
           subtask.completed
             ? 'bg-green-500 border-green-500 text-white'
             : 'border-border bg-white hover:border-primary'
@@ -203,16 +214,25 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
         )}
       </button>
 
-      {/* Title */}
-      <span
+      {/* Title + observaciones */}
+      <div
         onClick={() => setEditing(true)}
-        className={cn(
-          'flex-1 min-w-0 cursor-pointer text-xs select-none truncate',
-          subtask.completed && 'line-through text-muted-foreground'
-        )}
+        className="flex-1 min-w-0 cursor-pointer select-none"
       >
-        {subtask.title}
-      </span>
+        <span
+          className={cn(
+            'block text-xs truncate',
+            subtask.completed && 'line-through text-muted-foreground'
+          )}
+        >
+          {subtask.title}
+        </span>
+        {subtask.description && (
+          <span className="block text-[10px] text-muted-foreground truncate mt-0.5">
+            {subtask.description}
+          </span>
+        )}
+      </div>
 
       {/* Assignees */}
       {subtask.assignees.length > 0 && (
@@ -277,6 +297,7 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
     status: 'todo' as DbSubtask['status'],
     priority: 'medium' as DbSubtask['priority'],
     due_date: '',
+    description: '',
     assigneeIds: [] as number[],
   });
   const [saving, setSaving] = useState(false);
@@ -289,7 +310,13 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
     const { error } = await createProjectSubtask(
       taskId,
       projectId,
-      { title: form.title, status: form.status, priority: form.priority, due_date: form.due_date || null },
+      {
+        title: form.title,
+        status: form.status,
+        priority: form.priority,
+        due_date: form.due_date || null,
+        description: form.description.trim() || null,
+      },
       form.assigneeIds
     );
     setSaving(false);
@@ -363,6 +390,15 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
         <X size={12} />
       </button>
     </div>
+    <div className="px-5 pb-2.5">
+      <textarea
+        value={form.description}
+        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+        className="w-full rounded-md border border-primary/40 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-white resize-y"
+        placeholder="Observaciones (opcional)…"
+        rows={2}
+      />
+    </div>
     {saveError && (
       <p className="px-5 pb-2 text-[10px] text-red-600">{saveError}</p>
     )}
@@ -393,6 +429,7 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
     due_date: task.due_date ?? '',
     is_blocked: task.is_blocked,
     blocked_reason: task.blocked_reason ?? '',
+    description: task.description ?? '',
     assigneeIds: task.assignees.map((a) => a.id),
   });
   const [saving, setSaving] = useState(false);
@@ -420,6 +457,7 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
         due_date: form.due_date || null,
         is_blocked: form.is_blocked,
         blocked_reason: form.blocked_reason || null,
+        description: form.description.trim() || null,
       },
       form.assigneeIds
     );
@@ -535,6 +573,15 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
             />
           )}
 
+          {/* Observaciones */}
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            className="w-full rounded-md border border-border px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+            placeholder="Observaciones (opcional)…"
+            rows={2}
+          />
+
           {saveError && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
               {saveError}
@@ -582,6 +629,10 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
               <AlertOctagon size={11} className="mt-0.5 shrink-0" />
               {task.blocked_reason}
             </p>
+          )}
+
+          {task.description && (
+            <p className="mt-0.5 text-xs text-muted-foreground truncate">{task.description}</p>
           )}
 
           {subtasksTotal > 0 && (
