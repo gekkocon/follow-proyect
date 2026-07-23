@@ -103,12 +103,39 @@ export async function updateUser(
 
   if (emailChanged || newPassword) {
     const admin = createAdminClient();
+    const lookupEmail = current?.email ?? newEmail;
 
-    // Look up Auth user by current email
-    const { data: authList } = await admin.auth.admin.listUsers();
-    const authUser = authList?.users.find((u) => u.email === (current?.email ?? newEmail));
+    // Look up Auth user by current email, paginating through all pages
+    let authUser: { id: string; email?: string } | undefined;
+    for (let page = 1; !authUser; page++) {
+      const { data: authList, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+      if (listError) return { error: listError.message };
+      authUser = authList?.users.find((u) => u.email === lookupEmail);
+      if (!authList?.users.length || authList.users.length < 200) break;
+    }
 
-    if (authUser) {
+    if (!authUser) {
+      // No Auth account exists yet for this user (e.g. row inserted before Auth was wired up).
+      // Self-heal by creating one, as long as we have a password to set.
+      if (!newPassword) {
+        return {
+          error: `Este usuario no tiene una cuenta de acceso todavía. Define una contraseña para crearla.`,
+        };
+      }
+
+      const { error: createError } = await admin.auth.admin.createUser({
+        email: newEmail,
+        password: newPassword,
+        email_confirm: true,
+      });
+
+      if (createError) {
+        if (createError.message.includes('already registered') || createError.message.includes('already been registered')) {
+          return { error: 'Ya existe una cuenta con ese email.' };
+        }
+        return { error: createError.message };
+      }
+    } else {
       const updates: { email?: string; password?: string } = {};
       if (emailChanged) updates.email = newEmail;
       if (newPassword)  updates.password = newPassword;
