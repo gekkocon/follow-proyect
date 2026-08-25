@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Save, X, Upload } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw } from 'lucide-react';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
@@ -160,6 +160,8 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
   const [tasks, setTasks] = useState<TaskWithFullRelations[]>(initialTasks);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  // Fase 8B — mismo panel, modo 'update'. Nunca los dos abiertos a la vez.
+  const [showUpdate, setShowUpdate] = useState(false);
 
   // Sync when the parent Server Component re-fetches (e.g. first load / navigation)
   useEffect(() => {
@@ -190,11 +192,26 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
         <div className="flex items-center gap-2">
           {!showNewTask && (
             <button
-              onClick={() => setShowImport(true)}
+              onClick={() => {
+                setShowUpdate(false);
+                setShowImport(true);
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
             >
               <Upload size={14} />
               Importar tareas
+            </button>
+          )}
+          {!showNewTask && (
+            <button
+              onClick={() => {
+                setShowImport(false);
+                setShowUpdate(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <RefreshCw size={14} />
+              Actualizar tareas
             </button>
           )}
           {!showNewTask && (
@@ -257,10 +274,24 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
       {showImport && (
         <ImportTasksPanel
           projectId={projectId}
+          mode="import"
           existingTitles={tasks.map((t) => t.title)}
           onClose={() => setShowImport(false)}
           onImported={() => {
             setShowImport(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {showUpdate && (
+        <ImportTasksPanel
+          projectId={projectId}
+          mode="update"
+          existingTitles={tasks.map((t) => t.title)}
+          onClose={() => setShowUpdate(false)}
+          onImported={() => {
+            setShowUpdate(false);
             refresh();
           }}
         />
