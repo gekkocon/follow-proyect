@@ -36,6 +36,9 @@ function normalizeForRpc(tasks: ImportTaskInput[]) {
     description: item.description || null,
     start_date: item.start_date || null,
     due_date: item.due_date || null,
+    // Fase 8A — un code vacío o en blanco cuenta como ausente, para que el
+    // RPC caiga en la autogeneración en vez de insertar una cadena vacía.
+    code: item.code?.trim() || null,
   });
 
   return tasks.map((t) => ({

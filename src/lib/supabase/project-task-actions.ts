@@ -36,6 +36,30 @@ async function syncSubtaskAssignees(
   }
 }
 
+/**
+ * Fase 8A — reserves the next human-readable code.
+ *
+ * Allocation lives in Postgres (`alloc_task_code` / `alloc_subtask_code`,
+ * migration 010) because it bumps a burn counter in the same statement that
+ * reads it: the code is identity, so it is never renumbered and never reused
+ * after a delete. Doing it here with a MAX(code) + 1 read would hand the same
+ * code to two concurrent inserts and would recycle the code of a deleted row.
+ *
+ * Returns null on failure so callers can decide: creating a row without a code
+ * is preferable to failing the whole create, and `alloc_subtask_code`
+ * self-heals a missing parent code on the next subtask.
+ */
+async function allocCode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  fn: 'alloc_task_code' | 'alloc_subtask_code',
+  args: Record<string, number>
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) return null;
+  return (data as string) ?? null;
+}
+
 // ─────────────────────────────────────────────
 // TASKS
 // ─────────────────────────────────────────────
@@ -58,9 +82,11 @@ export async function createProjectTask(
   assigneeIds: number[]
 ): Promise<{ id: number | null; error: string | null }> {
   const supabase = createServerClient();
+  const code = await allocCode(supabase, 'alloc_task_code', { p_project_id: projectId });
+
   const { data: task, error } = await supabase
     .from('tasks')
-    .insert({ ...data, project_id: projectId })
+    .insert({ ...data, project_id: projectId, ...(code ? { code } : {}) })
     .select('id')
     .single();
 
@@ -134,9 +160,16 @@ export async function createProjectSubtask(
   assigneeIds: number[]
 ): Promise<{ id: number | null; error: string | null }> {
   const supabase = createServerClient();
+  const code = await allocCode(supabase, 'alloc_subtask_code', { p_task_id: taskId });
+
   const { data: subtask, error } = await supabase
     .from('subtasks')
-    .insert({ ...data, task_id: taskId, completed: data.status === 'done' })
+    .insert({
+      ...data,
+      task_id: taskId,
+      completed: data.status === 'done',
+      ...(code ? { code } : {}),
+    })
     .select('id')
     .single();
 

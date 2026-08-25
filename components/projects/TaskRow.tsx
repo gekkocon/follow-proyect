@@ -221,11 +221,22 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
       >
         <span
           className={cn(
-            'block text-xs truncate',
+            'flex items-baseline gap-1.5 min-w-0 text-xs',
             subtask.completed && 'line-through text-muted-foreground'
           )}
         >
-          {subtask.title}
+          {/* Fase 8A — code prefix. stopPropagation so dragging to select it
+              does not open the inline editor; no-underline keeps it readable
+              when the parent is struck through. */}
+          {subtask.code && (
+            <span
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 cursor-text select-text font-mono text-[10px] text-muted-foreground no-underline"
+            >
+              {subtask.code}
+            </span>
+          )}
+          <span className="truncate">{subtask.title}</span>
         </span>
         {subtask.description && (
           <span className="block text-[10px] text-muted-foreground truncate mt-0.5">
@@ -615,6 +626,16 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
           onClick={() => setEditing(true)}
         >
           <div className="flex items-center gap-2">
+            {/* Fase 8A — code prefix. stopPropagation so dragging to select it
+                does not open the inline editor. */}
+            {task.code && (
+              <span
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 cursor-text select-text font-mono text-[11px] text-muted-foreground"
+              >
+                {task.code}
+              </span>
+            )}
             <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
             {isOverdue && (
               <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-red-600">

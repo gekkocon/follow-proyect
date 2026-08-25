@@ -26,8 +26,12 @@ export type DbProject = {
 };
 
 // Fase 7: start_date, estimated_cost, dependencies added for bulk import
+// Fase 8A: `code` — human-readable identity (F0, F1, …), unique per project.
+// Never renumbered on reorder or delete; burned codes are not reused.
+// Nullable only for rows created before migration 010.
 export type DbTask = {
   id: number;
+  code: string | null;
   title: string;
   description: string | null;
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
@@ -47,8 +51,11 @@ export type DbTask = {
 // Fase 5E: subtasks extended with status and due_date
 // Fase 6B+: priority added
 // Fase 7: description, start_date, estimated_cost, dependencies added for bulk import
+// Fase 8A: `code` — human-readable identity derived from the parent task
+// (F0-T01, F0-T02, …). Same identity/burn rules as DbTask['code'].
 export type DbSubtask = {
   id: number;
+  code: string | null;
   title: string;
   description: string | null;
   completed: boolean;

@@ -8,6 +8,9 @@ const priorityValue = z.string().optional();
 
 const baseItemFields = {
   temp_id: z.string().optional(),
+  // Fase 8A — código humano opcional. Si viene, se respeta tal cual;
+  // si no viene, la función SQL import_project_tasks lo autogenera.
+  code: z.string().optional().nullable(),
   title: z.string().min(1, 'El título es requerido'),
   description: z.string().optional().nullable(),
   status: statusValue,
