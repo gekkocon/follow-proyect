@@ -56,13 +56,18 @@ async function getTasksData(): Promise<{
           .from('subtasks')
           .select('id, title, status, priority, due_date, completed, task_id')
           .in('task_id', taskIds),
+        // Etapa 1: responsables desde `assignments`. El id de la fila apuntada
+        // es `assignable_id`, y el filtro por `assignable_type` no es opcional:
+        // tareas y subtareas comparten la tabla y sus ids se pisan.
         supabase
-          .from('subtask_assignees')
-          .select('subtask_id, user_id'),
+          .from('assignments')
+          .select('assignable_id, user_id')
+          .eq('assignable_type', 'subtask'),
         supabase
-          .from('task_assignees')
-          .select('task_id, user_id')
-          .in('task_id', taskIds),
+          .from('assignments')
+          .select('assignable_id, user_id')
+          .eq('assignable_type', 'task')
+          .in('assignable_id', taskIds),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }];
 
@@ -72,18 +77,18 @@ async function getTasksData(): Promise<{
   for (const sa of subtaskAssigneesRaw ?? []) {
     const u = userMap[sa.user_id];
     if (!u) continue;
-    const list = assigneesBySubtask.get(sa.subtask_id) ?? [];
+    const list = assigneesBySubtask.get(sa.assignable_id) ?? [];
     list.push(u);
-    assigneesBySubtask.set(sa.subtask_id, list);
+    assigneesBySubtask.set(sa.assignable_id, list);
   }
 
   const assigneesByTask = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
   for (const ta of taskAssigneesRaw ?? []) {
     const u = userMap[ta.user_id];
     if (!u) continue;
-    const list = assigneesByTask.get(ta.task_id) ?? [];
+    const list = assigneesByTask.get(ta.assignable_id) ?? [];
     list.push(u);
-    assigneesByTask.set(ta.task_id, list);
+    assigneesByTask.set(ta.assignable_id, list);
   }
 
   const subtasksByTask = new Map<number, SubtaskListItem[]>();

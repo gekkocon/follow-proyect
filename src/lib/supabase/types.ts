@@ -37,6 +37,13 @@ export type DbTask = {
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'critical';
   project_id: number | null;
+  // Etapa 1 (migración 013): la tarea cuelga de una fase. Nullable mientras
+  // convivan las tareas anteriores a la migración.
+  phase_id: number | null;
+  // Código anterior a la Etapa 1, conservado para poder rastrear una fila
+  // cuyo `code` se recompuso.
+  legacy_code: string | null;
+  completed_at: string | null;
   is_blocked: boolean;
   blocked_reason: string | null;
   start_date: string | null;
@@ -65,10 +72,43 @@ export type DbSubtask = {
   estimated_cost: number | null;
   dependencies: number[];
   task_id: number;
+  // Etapa 1 (migración 013): mismo criterio que en DbTask.
+  legacy_code: string | null;
+  completed_at: string | null;
   created_at: string;
 };
 
-// Fase 5E: join tables for multiple assignees
+// Etapa 1 (migración 013): las fases del plan de trabajo. Una tarea cuelga
+// de una fase, y la fase lleva su propio contador de códigos de tarea.
+export type DbPhase = {
+  id: number;
+  project_id: number;
+  code: string;
+  name: string;
+  objective: string | null;
+  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  sort_order: number;
+  created_at: string;
+  task_code_seq: number;
+};
+
+// Etapa 1 (migración 013): tabla única de responsables, polimórfica. Reemplaza
+// a task_assignees y subtask_assignees, que se borran en la 014.
+export type DbAssignment = {
+  id: number;
+  assignable_type: 'task' | 'subtask' | 'work_item';
+  assignable_id: number;
+  user_id: number;
+  created_at: string;
+};
+
+// Fase 5E: join tables for multiple assignees.
+// SUPERSEDIDAS por DbAssignment. Se conservan porque los DELETE siguen
+// alcanzando las tablas viejas hasta la migración 014.
 export type DbTaskAssignee = {
   id: number;
   task_id: number;
@@ -87,12 +127,6 @@ export type DbSubtaskAssignee = {
 export type ProjectWithRelations = DbProject & {
   owner: DbUser | null;
   tasks: Pick<DbTask, 'id' | 'status'>[];
-};
-
-// Legacy single-assignee type (used by global tasks view)
-export type TaskWithSubtasks = DbTask & {
-  assignee: DbUser | null;
-  subtasks: DbSubtask[];
 };
 
 export type TaskWithRelations = DbTask & {

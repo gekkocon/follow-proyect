@@ -132,11 +132,21 @@ export async function deleteProject(
       const subtaskIds = (subtaskRows ?? []).map((s) => s.id);
 
       if (subtaskIds.length > 0) {
-        await supabase.from('subtask_assignees').delete().in('subtask_id', subtaskIds);
+        await supabase
+          .from('assignments')
+          .delete()
+          .eq('assignable_type', 'subtask')
+          .in('assignable_id', subtaskIds);
+        await supabase.from('subtask_assignees').delete().in('subtask_id', subtaskIds); // Sale en la 014
         await supabase.from('subtasks').delete().in('task_id', taskIds);
       }
 
-      await supabase.from('task_assignees').delete().in('task_id', taskIds);
+      await supabase
+        .from('assignments')
+        .delete()
+        .eq('assignable_type', 'task')
+        .in('assignable_id', taskIds);
+      await supabase.from('task_assignees').delete().in('task_id', taskIds); // Sale en la 014
       await supabase.from('tasks').delete().eq('project_id', id);
     }
   }

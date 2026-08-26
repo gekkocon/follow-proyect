@@ -11,7 +11,12 @@ async function getUsersData(): Promise<{
   const [{ data: users, error }, { data: taskAssignees }, { data: projects }] =
     await Promise.all([
       supabase.from('users').select('*').order('name'),
-      supabase.from('task_assignees').select('task_id, user_id'),
+      // Filtro por assignable_type obligatorio: sin él el contador sumaría
+      // subtareas y work_items al total de tareas del usuario.
+      supabase
+        .from('assignments')
+        .select('assignable_id, user_id')
+        .eq('assignable_type', 'task'),
       supabase.from('projects').select('id, owner_id'),
     ]);
 

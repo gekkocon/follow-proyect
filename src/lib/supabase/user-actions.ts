@@ -26,7 +26,13 @@ export async function fetchUsers(): Promise<{
   const [{ data: users, error }, { data: taskAssignees }, { data: projects }] =
     await Promise.all([
       supabase.from('users').select('*').order('name'),
-      supabase.from('task_assignees').select('task_id, user_id'),
+      // El filtro por assignable_type es obligatorio: `assignments` es
+      // polimórfica y sin él el contador sumaría subtareas, y más adelante
+      // work_items, al total de "tareas" del usuario.
+      supabase
+        .from('assignments')
+        .select('assignable_id, user_id')
+        .eq('assignable_type', 'task'),
       supabase.from('projects').select('id, owner_id'),
     ]);
 
@@ -196,7 +202,12 @@ export async function deleteUser(
   const supabase = createServerClient();
 
   const [{ data: tasks }, { data: projects }] = await Promise.all([
-    supabase.from('task_assignees').select('task_id').eq('user_id', id).limit(1),
+    supabase
+      .from('assignments')
+      .select('assignable_id')
+      .eq('assignable_type', 'task')
+      .eq('user_id', id)
+      .limit(1),
     supabase.from('projects').select('id').eq('owner_id', id).limit(1),
   ]);
 

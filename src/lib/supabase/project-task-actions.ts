@@ -14,11 +14,21 @@ async function syncTaskAssignees(
   taskId: number,
   assigneeIds: number[]
 ) {
-  await supabase.from('task_assignees').delete().eq('task_id', taskId);
+  await supabase
+    .from('assignments')
+    .delete()
+    .eq('assignable_type', 'task')
+    .eq('assignable_id', taskId);
+  await supabase.from('task_assignees').delete().eq('task_id', taskId); // Sale en la 014
+
   if (assigneeIds.length) {
-    await supabase
-      .from('task_assignees')
-      .insert(assigneeIds.map((uid) => ({ task_id: taskId, user_id: uid })));
+    await supabase.from('assignments').insert(
+      assigneeIds.map((uid) => ({
+        assignable_type: 'task',
+        assignable_id: taskId,
+        user_id: uid,
+      }))
+    );
   }
 }
 
@@ -28,11 +38,21 @@ async function syncSubtaskAssignees(
   subtaskId: number,
   assigneeIds: number[]
 ) {
-  await supabase.from('subtask_assignees').delete().eq('subtask_id', subtaskId);
+  await supabase
+    .from('assignments')
+    .delete()
+    .eq('assignable_type', 'subtask')
+    .eq('assignable_id', subtaskId);
+  await supabase.from('subtask_assignees').delete().eq('subtask_id', subtaskId); // Sale en la 014
+
   if (assigneeIds.length) {
-    await supabase
-      .from('subtask_assignees')
-      .insert(assigneeIds.map((uid) => ({ subtask_id: subtaskId, user_id: uid })));
+    await supabase.from('assignments').insert(
+      assigneeIds.map((uid) => ({
+        assignable_type: 'subtask',
+        assignable_id: subtaskId,
+        user_id: uid,
+      }))
+    );
   }
 }
 
@@ -233,11 +253,16 @@ export async function getProjectTasksFull(projectId: number): Promise<TaskWithFu
 
   const taskIds = tasks.map((t) => t.id);
 
+  // Etapa 1: los responsables viven en `assignments`, polimórfica. La columna
+  // que identifica la fila apuntada es `assignable_id`, no `task_id` ni
+  // `subtask_id`, y hay que filtrar por `assignable_type` o se mezclan tareas
+  // con subtareas: los dos tipos comparten la tabla y sus ids se pisan.
   const [{ data: taskAssigneeRows }, { data: subtasks }] = await Promise.all([
     supabase
-      .from('task_assignees')
-      .select('task_id, users(id, name)')
-      .in('task_id', taskIds),
+      .from('assignments')
+      .select('assignable_id, users(id, name)')
+      .eq('assignable_type', 'task')
+      .in('assignable_id', taskIds),
     supabase
       .from('subtasks')
       .select('*')
@@ -248,9 +273,10 @@ export async function getProjectTasksFull(projectId: number): Promise<TaskWithFu
   const subtaskIds = (subtasks ?? []).map((s) => s.id);
   const { data: subtaskAssigneeRows } = subtaskIds.length
     ? await supabase
-        .from('subtask_assignees')
-        .select('subtask_id, users(id, name)')
-        .in('subtask_id', subtaskIds)
+        .from('assignments')
+        .select('assignable_id, users(id, name)')
+        .eq('assignable_type', 'subtask')
+        .in('assignable_id', subtaskIds)
     : { data: [] };
 
   const enrichedSubtasks: SubtaskWithAssignees[] = (subtasks ?? []).map((s) => ({
@@ -260,7 +286,7 @@ export async function getProjectTasksFull(projectId: number): Promise<TaskWithFu
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assignees: (subtaskAssigneeRows ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.subtask_id === s.id)
+      .filter((r: any) => r.assignable_id === s.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((r: any) => r.users)
       .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
@@ -271,7 +297,7 @@ export async function getProjectTasksFull(projectId: number): Promise<TaskWithFu
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assignees: (taskAssigneeRows ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.task_id === t.id)
+      .filter((r: any) => r.assignable_id === t.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((r: any) => r.users)
       .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
