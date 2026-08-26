@@ -23,10 +23,10 @@ export async function fetchUsers(): Promise<{
 }> {
   const supabase = createServerClient();
 
-  const [{ data: users, error }, { data: tasks }, { data: projects }] =
+  const [{ data: users, error }, { data: taskAssignees }, { data: projects }] =
     await Promise.all([
       supabase.from('users').select('*').order('name'),
-      supabase.from('tasks').select('id, assignee_id'),
+      supabase.from('task_assignees').select('task_id, user_id'),
       supabase.from('projects').select('id, owner_id'),
     ]);
 
@@ -34,7 +34,7 @@ export async function fetchUsers(): Promise<{
 
   const usersWithCounts: UserWithCounts[] = (users ?? []).map((u) => ({
     ...u,
-    task_count: (tasks ?? []).filter((t) => t.assignee_id === u.id).length,
+    task_count: (taskAssignees ?? []).filter((ta) => ta.user_id === u.id).length,
     project_count: (projects ?? []).filter((p) => p.owner_id === u.id).length,
   }));
 
@@ -196,7 +196,7 @@ export async function deleteUser(
   const supabase = createServerClient();
 
   const [{ data: tasks }, { data: projects }] = await Promise.all([
-    supabase.from('tasks').select('id').eq('assignee_id', id).limit(1),
+    supabase.from('task_assignees').select('task_id').eq('user_id', id).limit(1),
     supabase.from('projects').select('id').eq('owner_id', id).limit(1),
   ]);
 

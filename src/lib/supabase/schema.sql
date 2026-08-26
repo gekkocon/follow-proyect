@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   status         task_status   NOT NULL DEFAULT 'todo',
   priority       priority_level NOT NULL DEFAULT 'medium',
   project_id     BIGINT        REFERENCES projects(id) ON DELETE CASCADE,
-  assignee_id    BIGINT        REFERENCES users(id) ON DELETE SET NULL,
   is_blocked     BOOLEAN       NOT NULL DEFAULT FALSE,
   blocked_reason TEXT,
   due_date       DATE,
@@ -137,7 +136,6 @@ CREATE TABLE IF NOT EXISTS project_members (
 CREATE INDEX IF NOT EXISTS idx_projects_owner     ON projects(owner_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status    ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project      ON tasks(project_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_assignee     ON tasks(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status       ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task      ON subtasks(task_id);
 

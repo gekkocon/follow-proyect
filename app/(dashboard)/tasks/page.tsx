@@ -106,15 +106,11 @@ async function getTasksData(): Promise<{
   );
 
   const tasksWithRelations: TaskListItem[] = (tasks ?? []).map((t) => {
-    const joinAssignees = assigneesByTask.get(t.id) ?? [];
-    // Fallback to legacy single assignee_id if the join table has no rows for this task
-    const legacyAssignee = t.assignee_id ? userMap[t.assignee_id] : undefined;
     return {
       ...t,
-      project:  t.project_id  ? (projectMap[t.project_id]  ?? null) : null,
-      assignee: t.assignee_id ? (userMap[t.assignee_id]    ?? null) : null,
+      project:  t.project_id ? (projectMap[t.project_id] ?? null) : null,
       subtasks: subtasksByTask.get(t.id) ?? [],
-      assignees: joinAssignees.length > 0 ? joinAssignees : (legacyAssignee ? [legacyAssignee] : []),
+      assignees: assigneesByTask.get(t.id) ?? [],
     };
   });
 

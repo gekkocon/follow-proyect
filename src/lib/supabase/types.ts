@@ -37,7 +37,6 @@ export type DbTask = {
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'critical';
   project_id: number | null;
-  assignee_id: number | null;
   is_blocked: boolean;
   blocked_reason: string | null;
   start_date: string | null;
@@ -98,7 +97,6 @@ export type TaskWithSubtasks = DbTask & {
 
 export type TaskWithRelations = DbTask & {
   project: Pick<DbProject, 'id' | 'name'> | null;
-  assignee: Pick<DbUser, 'id' | 'name'> | null;
 };
 
 // Fase 5E: full relations with multiple assignees

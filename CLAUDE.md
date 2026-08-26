@@ -104,7 +104,7 @@ Es asimétrico (`/app` y `/components` fuera de `/src`) pero **es el estándar d
 Campos reales — **en inglés**, no en español:
 
 - `projects`: name, description, status, priority, owner_id, start_date, due_date
-- `tasks`: title, description, status, priority, project_id, assignee_id *(legacy)*, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies
+- `tasks`: title, description, status, priority, project_id, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies
 - `subtasks`: igual + task_id + completed; sin is_blocked ni blocked_reason
 - `project_members`: project_id, user_id, rol_en_proyecto *(TEXT libre, no enum)*
 
@@ -194,17 +194,17 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
 1. RLS habilitada pero con políticas `allow_all` permisivas. Toda la seguridad real es de aplicación.
 2. `/users` y `/settings` se protegen solo contra "no logueado", **no por rol**. La ocultación por rol es visual.
-3. `tasks.assignee_id` (legacy) convive con `task_assignees`. Hay fallback. Los contadores del módulo Usuarios aún cuentan por el campo viejo.
-4. `deleteUser` deja la cuenta de Supabase Auth huérfana.
-5. Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.
-6. `TaskRow.tsx`: 746 líneas con tres componentes adentro. Archivo de mayor riesgo del repo.
-7. `estimated_cost` se guarda pero no se totaliza en ninguna vista.
-8. `dependencies` se guarda y se resuelve en la importación, pero no se visualiza ni bloquea nada.
-9. `projects.status = 'overdue'` nunca se setea solo. No hay job.
-10. Sin tests de ningún tipo.
-11. Sin upload de archivos: logo y favicon solo por URL externa.
-12. `brand_settings` tiene `secondary_color`, `accent_color` y `font_family` en la tabla; la UI no los expone.
-13. `TaskStatusSelect` y `UserRoleSelect` usan `createPortal` a `document.body` con posición fija porque los dropdowns quedaban recortados por el overflow de la tabla. Es intencional.
+3. `deleteUser` deja la cuenta de Supabase Auth huérfana.
+4. Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.
+5. `TaskRow.tsx`: 746 líneas con tres componentes adentro. Archivo de mayor riesgo del repo.
+6. `estimated_cost` se guarda pero no se totaliza en ninguna vista.
+7. `dependencies` se guarda y se resuelve en la importación, pero no se visualiza ni bloquea nada.
+8. `projects.status = 'overdue'` nunca se setea solo. No hay job.
+9. Sin tests de ningún tipo.
+10. Sin upload de archivos: logo y favicon solo por URL externa.
+11. `brand_settings` tiene `secondary_color`, `accent_color` y `font_family` en la tabla; la UI no los expone.
+12. `TaskStatusSelect` y `UserRoleSelect` usan `createPortal` a `document.body` con posición fija porque los dropdowns quedaban recortados por el overflow de la tabla. Es intencional.
+13. `TaskWithSubtasks` en `types.ts` es un tipo legacy sin ningún consumidor: nadie lo importa. Se elimina en la migración del Work Plan.
 
 ---
 
@@ -213,6 +213,5 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 Una línea cada una. El fundamento completo de las dos últimas está en `docs/CHANGELOG.md`, en la entrada de la Fase 8B.
 
 1. **Arquitectura del Work Plan.** El modelo está definido en `docs/ARQUITECTURA-WORKPLAN.md`, con los cinco conflictos estructurales cerrados. Pendiente: la revisión campo por campo de las tablas.
-2. **`assignee_id` legacy.** Sigue conviviendo con `task_assignees` (deuda #3). Es la siguiente limpieza en la fila y **requiere SQL**, así que entra por el orden de deploy de la sección 8.
-3. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
-4. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
+2. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
+3. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.

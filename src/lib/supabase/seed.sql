@@ -67,13 +67,12 @@ INSERT INTO projects (name, description, status, priority, owner_id, start_date,
 -- TASKS — Proyecto: Rediseño Dashboard
 -- ============================================================
 
-INSERT INTO tasks (title, description, status, priority, project_id, assignee_id, is_blocked, due_date) VALUES
+INSERT INTO tasks (title, description, status, priority, project_id, is_blocked, due_date) VALUES
   (
     'Definir design tokens',
     'Colores, tipografía, espaciado y sombras en el sistema de diseño.',
     'done', 'high',
     (SELECT id FROM projects WHERE name = 'Rediseño Dashboard'),
-    (SELECT id FROM users WHERE email = 'sofia.martinez@follow.dev'),
     false, '2026-06-15'
   ),
   (
@@ -81,7 +80,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Botones, inputs, cards, badges y modales en Storybook.',
     'in_progress', 'high',
     (SELECT id FROM projects WHERE name = 'Rediseño Dashboard'),
-    (SELECT id FROM users WHERE email = 'sofia.martinez@follow.dev'),
     false, '2026-07-10'
   ),
   (
@@ -89,7 +87,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Listado de proyectos con filtros, búsqueda y ordenamiento.',
     'in_progress', 'high',
     (SELECT id FROM projects WHERE name = 'Rediseño Dashboard'),
-    (SELECT id FROM users WHERE email = 'maria.torres@follow.dev'),
     false, '2026-07-20'
   ),
   (
@@ -97,7 +94,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Kanban board con drag & drop y vista de lista.',
     'todo', 'high',
     (SELECT id FROM projects WHERE name = 'Rediseño Dashboard'),
-    (SELECT id FROM users WHERE email = 'javier.ruiz@follow.dev'),
     false, '2026-08-05'
   ),
   (
@@ -105,7 +101,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Charts de progreso con Recharts. Bloqueado hasta definir métricas con stakeholders.',
     'todo', 'medium',
     (SELECT id FROM projects WHERE name = 'Rediseño Dashboard'),
-    (SELECT id FROM users WHERE email = 'maria.torres@follow.dev'),
     true, '2026-08-20'
   );
 
@@ -117,13 +112,12 @@ WHERE title = 'Integrar gráficos de métricas';
 -- TASKS — Proyecto: API de Integraciones
 -- ============================================================
 
-INSERT INTO tasks (title, description, status, priority, project_id, assignee_id, is_blocked, due_date) VALUES
+INSERT INTO tasks (title, description, status, priority, project_id, is_blocked, due_date) VALUES
   (
     'Diseño de arquitectura REST',
     'Documentar endpoints, autenticación OAuth2 y rate limiting.',
     'done', 'critical',
     (SELECT id FROM projects WHERE name = 'API de Integraciones'),
-    (SELECT id FROM users WHERE email = 'ana.garcia@follow.dev'),
     false, '2026-06-01'
   ),
   (
@@ -131,7 +125,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Webhooks entrantes y salientes para notificaciones de tareas.',
     'in_review', 'high',
     (SELECT id FROM projects WHERE name = 'API de Integraciones'),
-    (SELECT id FROM users WHERE email = 'javier.ruiz@follow.dev'),
     false, '2026-07-15'
   ),
   (
@@ -139,7 +132,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Asociar commits y PRs a tareas del proyecto.',
     'in_progress', 'high',
     (SELECT id FROM projects WHERE name = 'API de Integraciones'),
-    (SELECT id FROM users WHERE email = 'maria.torres@follow.dev'),
     false, '2026-07-25'
   ),
   (
@@ -147,7 +139,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Suite de tests con Jest y Supertest para todos los endpoints.',
     'todo', 'critical',
     (SELECT id FROM projects WHERE name = 'API de Integraciones'),
-    (SELECT id FROM users WHERE email = 'javier.ruiz@follow.dev'),
     false, '2026-07-28'
   );
 
@@ -155,13 +146,12 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
 -- TASKS — Proyecto: App Móvil iOS
 -- ============================================================
 
-INSERT INTO tasks (title, description, status, priority, project_id, assignee_id, is_blocked, due_date) VALUES
+INSERT INTO tasks (title, description, status, priority, project_id, is_blocked, due_date) VALUES
   (
     'Investigación tech stack',
     'Evaluar React Native vs Swift nativo vs Flutter.',
     'in_progress', 'high',
     (SELECT id FROM projects WHERE name = 'App Móvil iOS'),
-    (SELECT id FROM users WHERE email = 'carlos.lopez@follow.dev'),
     false, '2026-09-15'
   ),
   (
@@ -169,7 +159,6 @@ INSERT INTO tasks (title, description, status, priority, project_id, assignee_id
     'Mockups de dashboard, proyectos y tareas en Figma.',
     'todo', 'medium',
     (SELECT id FROM projects WHERE name = 'App Móvil iOS'),
-    (SELECT id FROM users WHERE email = 'sofia.martinez@follow.dev'),
     false, '2026-09-30'
   );
 

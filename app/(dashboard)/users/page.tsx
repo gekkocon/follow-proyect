@@ -8,10 +8,10 @@ async function getUsersData(): Promise<{
 }> {
   const supabase = createServerClient();
 
-  const [{ data: users, error }, { data: tasks }, { data: projects }] =
+  const [{ data: users, error }, { data: taskAssignees }, { data: projects }] =
     await Promise.all([
       supabase.from('users').select('*').order('name'),
-      supabase.from('tasks').select('id, assignee_id'),
+      supabase.from('task_assignees').select('task_id, user_id'),
       supabase.from('projects').select('id, owner_id'),
     ]);
 
@@ -19,8 +19,8 @@ async function getUsersData(): Promise<{
 
   const usersWithCounts: UserWithCounts[] = (users ?? []).map((u) => ({
     ...u,
-    task_count:    (tasks    ?? []).filter((t) => t.assignee_id === u.id).length,
-    project_count: (projects ?? []).filter((p) => p.owner_id    === u.id).length,
+    task_count:    (taskAssignees ?? []).filter((ta) => ta.user_id === u.id).length,
+    project_count: (projects      ?? []).filter((p)  => p.owner_id === u.id).length,
   }));
 
   return { users: usersWithCounts, error: null };
