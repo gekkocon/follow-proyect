@@ -13,7 +13,7 @@
 -- tienen DOS sentencias cada uno, marcadas abajo como (a.1)/(a.2) y
 -- (b.1)/(b.2): esos tambien van de a uno.
 --
--- Destino: PROD. Los numeros de DEV no sirven para decidir arquitectura.
+-- Destino: la base única. No hay DEV ni PROD separados (CLAUDE.md §8).
 -- ===========================================================================
 
 
