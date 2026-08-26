@@ -36,9 +36,15 @@ type NewTaskRowProps = {
   users: Pick<DbUser, 'id' | 'name'>[];
   onSaved: () => void;
   onCancel: () => void;
+  /**
+   * Etapa 1, paso 1C — when present the task is born inside this phase and its
+   * code comes from the phase counter. Absent keeps the previous behaviour
+   * exactly: an orphan task numbered off the project.
+   */
+  phaseId?: number;
 };
 
-function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
+function NewTaskRow({ projectId, users, onSaved, onCancel, phaseId }: NewTaskRowProps) {
   const [form, setForm] = useState({
     title: '',
     status: 'todo' as DbTask['status'],
@@ -63,7 +69,8 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
         due_date: form.due_date || null,
         description: form.description.trim() || null,
       },
-      form.assigneeIds
+      form.assigneeIds,
+      phaseId
     );
     setSaving(false);
     if (!error) {
@@ -234,6 +241,12 @@ type WorkSectionProps = {
   projectId: number;
   onDelete: (taskId: number) => void;
   onRefresh: () => void;
+  /**
+   * Etapa 1, paso 1C — present only for a real phase. The "Sin fase" block
+   * leaves it undefined and therefore renders no footer: it already has its
+   * own button at the bottom of the list.
+   */
+  phaseId?: number;
 };
 
 function WorkSection({
@@ -247,27 +260,39 @@ function WorkSection({
   projectId,
   onDelete,
   onRefresh,
+  phaseId,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
+  const isPhase = phaseId !== undefined;
+  // Each section owns its form state, so opening one phase's form does not
+  // open every other one.
+  const [showNewTask, setShowNewTask] = useState(false);
+
+  // Paso 1C — a real phase stays expandable with zero tasks: otherwise it can
+  // never be opened, and a phase that cannot be opened can never receive its
+  // first task. The "no chevron without children" rule is unchanged for tasks
+  // and subtasks; it only bends for phases, which are containers by nature.
+  const expandable = hasTasks || isPhase;
 
   return (
     <div className="rounded-xl border border-border bg-white shadow-sm">
       {/* Header. A div and not a button: it holds block-level children, and
           TaskRow already uses this same clickable-div pattern for its title. */}
       <div
-        onClick={() => hasTasks && onToggle()}
+        onClick={() => expandable && onToggle()}
         className={cn(
           'flex items-center gap-3 px-4 py-3',
-          hasTasks && 'cursor-pointer hover:bg-muted/20 transition-colors'
+          expandable && 'cursor-pointer hover:bg-muted/20 transition-colors'
         )}
       >
-        {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada. */}
+        {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada.
+            Una fase es la excepción: abre para poder recibir su primera. */}
         <ChevronRight
           size={16}
           className={cn(
             'shrink-0 text-muted-foreground transition-transform',
             open && 'rotate-90',
-            !hasTasks && 'invisible'
+            !expandable && 'invisible'
           )}
         />
 
@@ -299,16 +324,43 @@ function WorkSection({
         </div>
       </div>
 
-      {open && hasTasks && (
-        <div className="border-t border-border bg-muted/10 p-3">
-          <TaskList
-            tasks={tasks}
-            phaseCode={code}
-            users={users}
-            projectId={projectId}
-            onDelete={onDelete}
-            onRefresh={onRefresh}
-          />
+      {open && (hasTasks || isPhase) && (
+        <div className="border-t border-border bg-muted/10 p-3 space-y-3">
+          {hasTasks && (
+            <TaskList
+              tasks={tasks}
+              phaseCode={code}
+              users={users}
+              projectId={projectId}
+              onDelete={onDelete}
+              onRefresh={onRefresh}
+            />
+          )}
+
+          {/* Pie de fase. Sólo en fases reales: la sección "Sin fase" ya tiene
+              su propio botón al pie de la lista y tendría dos que hacen lo
+              mismo. Mismo patrón visual que ese botón. */}
+          {isPhase &&
+            (showNewTask ? (
+              <NewTaskRow
+                projectId={projectId}
+                phaseId={phaseId}
+                users={users}
+                onSaved={() => {
+                  setShowNewTask(false);
+                  onRefresh();
+                }}
+                onCancel={() => setShowNewTask(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowNewTask(true)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
+              >
+                <Plus size={14} />
+                Nueva tarea en esta fase
+              </button>
+            ))}
         </div>
       )}
     </div>
@@ -441,6 +493,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   name={phase.name}
                   tasks={phase.tasks}
                   progress={phase.progress}
+                  phaseId={phase.id}
                   open={isPhaseOpen(phase.id)}
                   onToggle={() => togglePhase(phase.id)}
                   users={users}
