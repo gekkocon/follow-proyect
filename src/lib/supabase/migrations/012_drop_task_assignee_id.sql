@@ -1,3 +1,8 @@
+-- ============================================================
+-- YA EJECUTADA el 2026-08-26 sobre la base única. NO volver a correr.
+-- Hay una sola base Supabase: local y producción apuntan al mismo
+-- proyecto. Re-ejecutar este script opera sobre datos vivos.
+-- ============================================================
 -- ---------------------------------------------------------------------------
 -- 012_drop_task_assignee_id.sql
 -- Elimina tasks.assignee_id, la columna legacy de responsable único.
