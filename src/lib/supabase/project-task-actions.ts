@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from './server';
+import { buildWorkPlan, type ProjectWorkPlan } from '@/src/lib/work-plan';
 import type { DbTask, DbSubtask, DbUser, TaskWithFullRelations, SubtaskWithAssignees } from './types';
 
 // ─────────────────────────────────────────────
@@ -78,6 +79,34 @@ async function allocCode(
   const { data, error } = await supabase.rpc(fn, args);
   if (error) return null;
   return (data as string) ?? null;
+}
+
+/**
+ * Etapa 1, paso 1B — indexes assignment rows by the row they point at.
+ *
+ * Replaces a `.filter()` inside a `.map()`, which was O(n·m): 106 subtasks
+ * times every assignment row, and 37 tasks times 106 subtasks. A Map is built
+ * once and read in constant time.
+ *
+ * Insertion order is preserved, so walking the rows in the order the query
+ * returned them yields exactly the arrays the old `.filter()` produced.
+ */
+function groupAssignees(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rows: any[] | null | undefined
+): Map<number, Pick<DbUser, 'id' | 'name'>[]> {
+  const map = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
+
+  for (const row of rows ?? []) {
+    const user = row?.users as Pick<DbUser, 'id' | 'name'> | null | undefined;
+    if (!user) continue;
+
+    const list = map.get(row.assignable_id);
+    if (list) list.push(user);
+    else map.set(row.assignable_id, [user]);
+  }
+
+  return map;
 }
 
 // ─────────────────────────────────────────────
@@ -279,28 +308,60 @@ export async function getProjectTasksFull(projectId: number): Promise<TaskWithFu
         .in('assignable_id', subtaskIds)
     : { data: [] };
 
-  const enrichedSubtasks: SubtaskWithAssignees[] = (subtasks ?? []).map((s) => ({
-    ...s,
-    status: s.status ?? 'todo',
-    due_date: s.due_date ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assignees: (subtaskAssigneeRows ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.assignable_id === s.id)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => r.users)
-      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
-  }));
+  // Etapa 1, paso 1B — tres agrupamientos, cada uno indexado una sola vez.
+  // Antes eran `.filter()` dentro de `.map()`, que recorrían la lista entera
+  // por cada fila.
+  const taskAssignees = groupAssignees(taskAssigneeRows);
+  const subtaskAssignees = groupAssignees(subtaskAssigneeRows);
+
+  const subtasksByTask = new Map<number, SubtaskWithAssignees[]>();
+  for (const subtask of subtasks ?? []) {
+    const enriched: SubtaskWithAssignees = {
+      ...subtask,
+      status: subtask.status ?? 'todo',
+      due_date: subtask.due_date ?? null,
+      assignees: subtaskAssignees.get(subtask.id) ?? [],
+    };
+
+    const list = subtasksByTask.get(subtask.task_id);
+    if (list) list.push(enriched);
+    else subtasksByTask.set(subtask.task_id, [enriched]);
+  }
 
   return tasks.map((t) => ({
     ...t,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assignees: (taskAssigneeRows ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.assignable_id === t.id)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => r.users)
-      .filter(Boolean) as Pick<DbUser, 'id' | 'name'>[],
-    subtasks: enrichedSubtasks.filter((s) => s.task_id === t.id),
+    assignees: taskAssignees.get(t.id) ?? [],
+    subtasks: subtasksByTask.get(t.id) ?? [],
   }));
+}
+
+// ─────────────────────────────────────────────
+// WORK PLAN TREE (Etapa 1, paso 1B)
+//
+// getProjectTasksFull stays flat and untouched on purpose: previewProjectUpdate
+// in project-import-actions.ts walks its result to build the by-code maps, and
+// that flow is frozen until update_work_plan lands in Etapa 3. Changing its
+// shape would break a consumer that is going to be rewritten anyway.
+// ─────────────────────────────────────────────
+
+export async function getProjectWorkPlan(projectId: number): Promise<ProjectWorkPlan> {
+  const supabase = createServerClient();
+
+  const [tasks, { data: phaseRows, error: phaseError }] = await Promise.all([
+    getProjectTasksFull(projectId),
+    supabase
+      .from('phases')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true }),
+  ]);
+
+  // A new table with RLS enabled and no policy returns an empty set — or a
+  // permission error that this destructuring used to drop. Either way the
+  // project renders as phase-less and nothing on screen says why.
+  if (phaseError) {
+    console.error('[getProjectWorkPlan] phases query failed:', phaseError.message);
+  }
+
+  return buildWorkPlan(phaseRows ?? [], tasks);
 }

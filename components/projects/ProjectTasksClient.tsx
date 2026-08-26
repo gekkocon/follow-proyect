@@ -1,13 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Save, X, Upload, RefreshCw } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
-import { createProjectTask, getProjectTasksFull } from '@/src/lib/supabase/project-task-actions';
+import { ProgressBar } from './ProgressBar';
+import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
+import { phaseProgress, type ProjectWorkPlan } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type { TaskWithFullRelations, DbTask, DbUser } from '@/src/lib/supabase/types';
+
+// ─────────────────────────────────────────────
+// Tuning constants
+//
+// Both come from the relevamiento, not from taste: the normal case is ~12
+// items, 60 % of nodes have no children at all, and one node reached 150.
+// Sizing these against today's small numbers builds something that breaks the
+// next time the agency loads a real plan.
+// ─────────────────────────────────────────────
+
+/** Above this many phases, everything starts collapsed so the project fits. */
+const PHASES_OPEN_BY_DEFAULT_MAX = 5;
+
+/** Tasks rendered per section before the cut. No virtualization, no library. */
+const TASKS_VISIBLE_PER_PHASE = 25;
 
 // ─────────────────────────────────────────────
 // NewTaskRow
@@ -147,39 +165,214 @@ function NewTaskRow({ projectId, users, onSaved, onCancel }: NewTaskRowProps) {
 }
 
 // ─────────────────────────────────────────────
+// TaskList
+//
+// The flat list of tasks used inside a phase, inside the "Sin fase" block and,
+// when the project has no phases at all, on its own.
+// ─────────────────────────────────────────────
+
+type TaskListProps = {
+  tasks: TaskWithFullRelations[];
+  /** Phase code of the enclosing section, or null for phase-less tasks. */
+  phaseCode: string | null;
+  users: Pick<DbUser, 'id' | 'name'>[];
+  projectId: number;
+  onDelete: (taskId: number) => void;
+  onRefresh: () => void;
+};
+
+function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh }: TaskListProps) {
+  const [showAll, setShowAll] = useState(false);
+
+  const hidden = tasks.length - TASKS_VISIBLE_PER_PHASE;
+  const visible = showAll ? tasks : tasks.slice(0, TASKS_VISIBLE_PER_PHASE);
+
+  return (
+    <div className="space-y-2">
+      {visible.map((task) => (
+        <TaskRow
+          key={task.id}
+          task={task}
+          phaseCode={phaseCode}
+          users={users}
+          projectId={projectId}
+          onDelete={onDelete}
+          onRefresh={onRefresh}
+        />
+      ))}
+
+      {hidden > 0 && !showAll && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="w-full rounded-lg border border-dashed border-border py-1.5 text-xs text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
+        >
+          Mostrar {hidden} más
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// WorkSection
+//
+// One collapsible block. Used for a real phase and for the "Sin fase" block:
+// the UI is the same and the only difference is whether there is a code, so it
+// takes a prop instead of being duplicated.
+// ─────────────────────────────────────────────
+
+type WorkSectionProps = {
+  /** null renders no code badge — the "Sin fase" block has none. */
+  code: string | null;
+  name: string;
+  tasks: TaskWithFullRelations[];
+  /** null when there is nothing to average. Renders "—", never 0 %. */
+  progress: number | null;
+  open: boolean;
+  onToggle: () => void;
+  users: Pick<DbUser, 'id' | 'name'>[];
+  projectId: number;
+  onDelete: (taskId: number) => void;
+  onRefresh: () => void;
+};
+
+function WorkSection({
+  code,
+  name,
+  tasks,
+  progress,
+  open,
+  onToggle,
+  users,
+  projectId,
+  onDelete,
+  onRefresh,
+}: WorkSectionProps) {
+  const hasTasks = tasks.length > 0;
+
+  return (
+    <div className="rounded-xl border border-border bg-white shadow-sm">
+      {/* Header. A div and not a button: it holds block-level children, and
+          TaskRow already uses this same clickable-div pattern for its title. */}
+      <div
+        onClick={() => hasTasks && onToggle()}
+        className={cn(
+          'flex items-center gap-3 px-4 py-3',
+          hasTasks && 'cursor-pointer hover:bg-muted/20 transition-colors'
+        )}
+      >
+        {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada. */}
+        <ChevronRight
+          size={16}
+          className={cn(
+            'shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-90',
+            !hasTasks && 'invisible'
+          )}
+        />
+
+        {code && (
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">{code}</span>
+        )}
+
+        <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
+          {name}
+        </span>
+
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {tasks.length} tarea{tasks.length === 1 ? '' : 's'}
+        </span>
+
+        <div className="shrink-0 w-24">
+          {progress === null ? (
+            <span className="block text-right text-xs text-muted-foreground">—</span>
+          ) : (
+            <>
+              <span className="block text-right text-xs text-muted-foreground mb-1">
+                {progress.toFixed(1)}%
+              </span>
+              {/* showLabel explícito: el default es true e imprimiría "78/100"
+                  al lado del 77.8 %, dos números del mismo dato. */}
+              <ProgressBar done={Math.round(progress)} total={100} showLabel={false} />
+            </>
+          )}
+        </div>
+      </div>
+
+      {open && hasTasks && (
+        <div className="border-t border-border bg-muted/10 p-3">
+          <TaskList
+            tasks={tasks}
+            phaseCode={code}
+            users={users}
+            projectId={projectId}
+            onDelete={onDelete}
+            onRefresh={onRefresh}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // ProjectTasksClient
 // ─────────────────────────────────────────────
 
 type Props = {
-  initialTasks: TaskWithFullRelations[];
+  initialWorkPlan: ProjectWorkPlan;
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
 };
 
-export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
-  const [tasks, setTasks] = useState<TaskWithFullRelations[]>(initialTasks);
+export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props) {
+  const [workPlan, setWorkPlan] = useState<ProjectWorkPlan>(initialWorkPlan);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showImport, setShowImport] = useState(false);
   // Fase 8B — mismo panel, modo 'update'. Nunca los dos abiertos a la vez.
   const [showUpdate, setShowUpdate] = useState(false);
 
+  // Collapse state, local. No fourth Zustand store: nothing outside this
+  // subtree cares which phases are open. Phases missing from the record fall
+  // back to the default, so a phase created later inherits it instead of
+  // appearing closed for no reason.
+  const [phaseOpen, setPhaseOpen] = useState<Record<number, boolean>>({});
+  const [orphansOpen, setOrphansOpen] = useState(true);
+
+  const openByDefault = workPlan.phases.length <= PHASES_OPEN_BY_DEFAULT_MAX;
+  const isPhaseOpen = (phaseId: number) => phaseOpen[phaseId] ?? openByDefault;
+  const togglePhase = (phaseId: number) =>
+    setPhaseOpen((prev) => ({ ...prev, [phaseId]: !(prev[phaseId] ?? openByDefault) }));
+
   // Sync when the parent Server Component re-fetches (e.g. first load / navigation)
   useEffect(() => {
-    setTasks(initialTasks);
-  }, [initialTasks]);
+    setWorkPlan(initialWorkPlan);
+  }, [initialWorkPlan]);
 
-  // Re-fetches the full task list with all relations and replaces local state directly.
+  // Re-fetches the full tree with all relations and replaces local state directly.
   // Used instead of router.refresh() everywhere below, which raced with the DB write
   // (revalidatePath + client re-render could resolve before the insert's effects were
   // visible to the next read) and left new subtasks invisible until a manual reload.
   async function refresh() {
-    const fresh = await getProjectTasksFull(projectId);
-    setTasks(fresh);
+    const fresh = await getProjectWorkPlan(projectId);
+    setWorkPlan(fresh);
   }
 
-  function handleDelete(taskId: number) {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  // Etapa 1, paso 1B — deleting a task changes the progress of its phase and of
+  // the project, so the list can no longer be patched locally: both bars would
+  // keep showing the old number. Same reasoning as the comment on refresh().
+  // The signature stays (taskId: number) => void so TaskRow does not change.
+  function handleDelete() {
+    refresh();
   }
+
+  const hasPhases = workPlan.phases.length > 0;
+  const orphanProgress = phaseProgress(workPlan.orphanTasks);
+
+  // El botón dice a dónde va a parar la tarea. `createProjectTask` llama a
+  // `alloc_task_code`, el allocator huérfano, y no recibe phaseId: toda tarea
+  // creada desde acá nace sin fase. Crear dentro de una fase es el paso 1C.
+  const newTaskLabel = hasPhases ? 'Nueva tarea sin fase' : 'Nueva tarea';
 
   return (
     <div>
@@ -187,7 +380,9 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base font-semibold text-foreground">
           Tareas{' '}
-          <span className="text-muted-foreground font-normal text-sm">({tasks.length})</span>
+          <span className="text-muted-foreground font-normal text-sm">
+            ({workPlan.allTasks.length})
+          </span>
         </h2>
         <div className="flex items-center gap-2">
           {!showNewTask && (
@@ -214,20 +409,11 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
               Actualizar tareas
             </button>
           )}
-          {!showNewTask && (
-            <button
-              onClick={() => setShowNewTask(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              <Plus size={14} />
-              Nueva tarea
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Task list */}
-      {tasks.length === 0 && !showNewTask ? (
+      {/* Work plan */}
+      {workPlan.allTasks.length === 0 && !showNewTask ? (
         <div className="rounded-xl border border-dashed border-border bg-white p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No hay tareas para este proyecto.{' '}
@@ -245,19 +431,55 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
+        <div className="space-y-3">
+          {hasPhases ? (
+            <>
+              {workPlan.phases.map((phase) => (
+                <WorkSection
+                  key={phase.id}
+                  code={phase.code}
+                  name={phase.name}
+                  tasks={phase.tasks}
+                  progress={phase.progress}
+                  open={isPhaseOpen(phase.id)}
+                  onToggle={() => togglePhase(phase.id)}
+                  users={users}
+                  projectId={projectId}
+                  onDelete={handleDelete}
+                  onRefresh={refresh}
+                />
+              ))}
+
+              {workPlan.orphanTasks.length > 0 && (
+                <WorkSection
+                  code={null}
+                  name="Sin fase"
+                  tasks={workPlan.orphanTasks}
+                  progress={orphanProgress}
+                  open={orphansOpen}
+                  onToggle={() => setOrphansOpen((o) => !o)}
+                  users={users}
+                  projectId={projectId}
+                  onDelete={handleDelete}
+                  onRefresh={refresh}
+                />
+              )}
+            </>
+          ) : (
+            // Proyecto sin ninguna fase: lista plana, sin envoltorio. Meter dos
+            // tareas dentro de un acordeón titulado "Sin fase" se lee como un
+            // error, no como una clasificación.
+            <TaskList
+              tasks={workPlan.orphanTasks}
+              phaseCode={null}
               users={users}
               projectId={projectId}
               onDelete={handleDelete}
               onRefresh={refresh}
             />
-          ))}
+          )}
 
-          {showNewTask && (
+          {showNewTask ? (
             <NewTaskRow
               projectId={projectId}
               users={users}
@@ -267,6 +489,14 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
               }}
               onCancel={() => setShowNewTask(false)}
             />
+          ) : (
+            <button
+              onClick={() => setShowNewTask(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
+            >
+              <Plus size={14} />
+              {newTaskLabel}
+            </button>
           )}
         </div>
       )}
@@ -275,7 +505,7 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
         <ImportTasksPanel
           projectId={projectId}
           mode="import"
-          existingTitles={tasks.map((t) => t.title)}
+          existingTitles={workPlan.allTasks.map((t) => t.title)}
           onClose={() => setShowImport(false)}
           onImported={() => {
             setShowImport(false);
@@ -288,7 +518,7 @@ export function ProjectTasksClient({ initialTasks, users, projectId }: Props) {
         <ImportTasksPanel
           projectId={projectId}
           mode="update"
-          existingTitles={tasks.map((t) => t.title)}
+          existingTitles={workPlan.allTasks.map((t) => t.title)}
           onClose={() => setShowUpdate(false)}
           onImported={() => {
             setShowUpdate(false);

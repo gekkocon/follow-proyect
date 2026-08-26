@@ -4,7 +4,7 @@ import { ChevronLeft, CalendarDays, User } from 'lucide-react';
 import { format, isPast, parseISO, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createServerClient } from '@/src/lib/supabase/server';
-import { getProjectTasksFull } from '@/src/lib/supabase/project-task-actions';
+import { getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
 import { StatusBadge } from '@/components/projects/StatusBadge';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
 import { ProgressBar } from '@/components/projects/ProgressBar';
@@ -80,17 +80,19 @@ export default async function ProjectDetailPage({
   if (isNaN(id)) notFound();
 
   const activeUser = await getActiveUser();
-  const [project, tasks, activeUsers, allUsers, members] = await Promise.all([
+  const [project, workPlan, activeUsers, allUsers, members] = await Promise.all([
     getProject(id),
-    getProjectTasksFull(id),
+    getProjectWorkPlan(id),
     getActiveUsers(),
     getAllUsers(),
     getProjectMembers(id),
   ]);
   if (!project) notFound();
 
-  const tasksDone = tasks.filter((t) => t.status === 'done').length;
-  const tasksTotal = tasks.length;
+  // Etapa 1, paso 1B — el conteo sigue leyendo la lista PLANA. Leer el árbol
+  // devolvería la cantidad de fases, que es un número plausible y equivocado.
+  const tasksDone = workPlan.allTasks.filter((t) => t.status === 'done').length;
+  const tasksTotal = workPlan.allTasks.length;
 
   const isOverdue =
     project.due_date &&
@@ -100,7 +102,7 @@ export default async function ProjectDetailPage({
 
   const projectWithRelations: ProjectWithRelations = {
     ...project,
-    tasks: tasks.map((t) => ({ id: t.id, status: t.status, project_id: t.project_id })),
+    tasks: workPlan.allTasks.map((t) => ({ id: t.id, status: t.status, project_id: t.project_id })),
   };
 
   return (
@@ -162,17 +164,20 @@ export default async function ProjectDetailPage({
           )}
         </div>
 
-        {/* Progress */}
-        {tasksTotal > 0 && (
+        {/* Progress
+            Etapa 1, paso 1B — el avance es el promedio de las fases, calculado
+            al leer y nunca guardado. Las tareas sin fase no entran (D-15): el
+            bloque "Sin fase" muestra el suyo en su propia cabecera. La regla
+            entera vive en projectProgress(), en src/lib/work-plan.ts. */}
+        {workPlan.progress !== null && (
           <div className="mt-4">
             <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-              <span>Progreso del proyecto</span>
+              <span>Avance del plan</span>
               <span>
-                {tasksDone}/{tasksTotal} tareas finalizadas (
-                {Math.round((tasksDone / tasksTotal) * 100)}%)
+                {workPlan.progress.toFixed(1)}% · {tasksDone}/{tasksTotal} tareas finalizadas
               </span>
             </div>
-            <ProgressBar done={tasksDone} total={tasksTotal} showLabel={false} />
+            <ProgressBar done={Math.round(workPlan.progress)} total={100} showLabel={false} />
           </div>
         )}
       </div>
@@ -187,7 +192,7 @@ export default async function ProjectDetailPage({
 
       {/* Tasks — interactive client component */}
       <ProjectTasksClient
-        initialTasks={tasks}
+        initialWorkPlan={workPlan}
         users={activeUsers}
         projectId={id}
       />

@@ -26,6 +26,7 @@ import {
   deleteProjectSubtask,
 } from '@/src/lib/supabase/project-task-actions';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
+import { composeCode } from '@/src/lib/work-plan';
 import type {
   TaskWithFullRelations,
   SubtaskWithAssignees,
@@ -40,12 +41,15 @@ import type {
 
 type SubtaskRowProps = {
   subtask: SubtaskWithAssignees;
+  /** Composite code of the parent task ("F0-T03"), already assembled. */
+  parentCode?: string | null;
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
   onRefresh: () => void;
 };
 
-function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
+function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh }: SubtaskRowProps) {
+  const subtaskCode = composeCode([parentCode], subtask.code);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     title: subtask.title,
@@ -228,12 +232,12 @@ function SubtaskRow({ subtask, users, projectId, onRefresh }: SubtaskRowProps) {
           {/* Fase 8A — code prefix. stopPropagation so dragging to select it
               does not open the inline editor; no-underline keeps it readable
               when the parent is struck through. */}
-          {subtask.code && (
+          {subtaskCode && (
             <span
               onClick={(e) => e.stopPropagation()}
               className="shrink-0 cursor-text select-text font-mono text-[10px] text-muted-foreground no-underline"
             >
-              {subtask.code}
+              {subtaskCode}
             </span>
           )}
           <span className="truncate">{subtask.title}</span>
@@ -423,13 +427,16 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
 
 type TaskRowProps = {
   task: TaskWithFullRelations;
+  /** Code of the enclosing phase, or null for a phase-less task. */
+  phaseCode?: string | null;
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
   onDelete: (taskId: number) => void;
   onRefresh: () => void;
 };
 
-export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRowProps) {
+export function TaskRow({ task, phaseCode, users, projectId, onDelete, onRefresh }: TaskRowProps) {
+  const taskCode = composeCode([phaseCode], task.code);
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showNewSubtask, setShowNewSubtask] = useState(false);
@@ -628,12 +635,12 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
           <div className="flex items-center gap-2">
             {/* Fase 8A — code prefix. stopPropagation so dragging to select it
                 does not open the inline editor. */}
-            {task.code && (
+            {taskCode && (
               <span
                 onClick={(e) => e.stopPropagation()}
                 className="shrink-0 cursor-text select-text font-mono text-[11px] text-muted-foreground"
               >
-                {task.code}
+                {taskCode}
               </span>
             )}
             <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
@@ -721,6 +728,7 @@ export function TaskRow({ task, users, projectId, onDelete, onRefresh }: TaskRow
             <SubtaskRow
               key={sub.id}
               subtask={sub}
+              parentCode={taskCode}
               users={users}
               projectId={projectId}
               onRefresh={onRefresh}
