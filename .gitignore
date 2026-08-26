@@ -37,7 +37,4 @@ next-env.d.ts
 
 # ... (lo que ya tenga Next.js)
 
-# SQLite y Drizzle
-local.db
-local.db-journal
-/drizzle
+

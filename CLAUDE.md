@@ -37,8 +37,6 @@ Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Co
 
 **Prohibido sin justificación previa y aprobada:** SQLite, Drizzle ORM, Prisma, cualquier otro ORM, React Query, librerías de charts.
 
-> Drizzle sigue físicamente en el repo (`src/db/`, `drizzle/`, scripts `db:*`) pero está **muerto**: no se usa en runtime. Ignorarlo. Su eliminación es tarea de limpieza pendiente.
-
 ---
 
 ## 3. Arquitectura real — respetarla
@@ -83,8 +81,8 @@ Server Component (fetch) → props → Client Component (interacción)
     /validations     esquemas Zod
     constants.ts, task-constants.ts
   /store             Zustand
-  /db                MUERTO (Drizzle). No tocar, no usar.
-/docs                FUNCIONALIDADES.md, CHANGELOG.md
+/docs                FUNCIONALIDADES.md, CHANGELOG.md,
+                     ARQUITECTURA-WORKPLAN.md
 ```
 
 Es asimétrico (`/app` y `/components` fuera de `/src`) pero **es el estándar del repo. No reorganizar.** El alias `@/` apunta a la raíz.
@@ -214,9 +212,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
 Una línea cada una. El fundamento completo de las dos últimas está en `docs/CHANGELOG.md`, en la entrada de la Fase 8B.
 
-1. **Nomenclatura de roles.** El enum real es `admin / pm / developer / designer`; documentación vieja decía Admin / Coordinador / Colaborador. Renombrar cuesta migración + 2 archivos de constantes + types + UI, a cambio de nada funcional. *Recomendación: adoptar los reales y cerrar.*
-2. **Arquitectura del Work Plan.** Tablas separadas vs. modelo genérico `work_items` con `type` + `parent_id`. El modelo objetivo está en diseño funcional y **deliberadamente no vive en este archivo**: no debe guiar código hasta que se cierre.
-3. **`assignee_id` legacy.** Definir si se elimina dentro de la migración del Work Plan o en una limpieza previa e independiente.
-4. **Drizzle muerto.** Definir si se borra del repo ahora o después de la reestructuración.
-5. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
-6. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
+1. **Arquitectura del Work Plan.** El modelo está definido en `docs/ARQUITECTURA-WORKPLAN.md`, con los cinco conflictos estructurales cerrados. Pendiente: la revisión campo por campo de las tablas.
+2. **`assignee_id` legacy.** Sigue conviviendo con `task_assignees` (deuda #3). Es la siguiente limpieza en la fila y **requiere SQL**, así que entra por el orden de deploy de la sección 8.
+3. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
+4. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
