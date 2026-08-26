@@ -152,32 +152,46 @@ Equivalencia con la nomenclatura vieja: admin ≈ Admin, pm ≈ Coordinador, dev
 
 ---
 
-## 8. Entornos, migraciones y deploy
+## 8. Entorno, migraciones y deploy
+
+**Hay UN SOLO proyecto Supabase.** Local y producción apuntan a la misma base. No existe entorno de ensayo.
 
 | Entorno | Configuración |
 |---|---|
-| Local | `.env.local` → proyecto Supabase **DEV**. Gitignored, nunca se commitea. |
-| Producción | Variables en el dashboard de Vercel → proyecto Supabase **PROD**. |
+| Local | `.env.local` → el proyecto Supabase. Gitignored, nunca se commitea. |
+| Producción | Variables en Vercel → el mismo proyecto Supabase. |
 
-Cada push a `main` despliega apuntando a datos de producción.
+Consecuencias:
+
+- Todo SQL que se corre a mano impacta producción en el acto.
+- `localhost:3001` y la app desplegada leen y escriben los mismos datos.
+- El backup de Supabase es el único rollback.
 
 Variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (solo servidor).
 
-**Migraciones: no hay sistema automático.** `src/lib/supabase/schema.sql` es la fuente de verdad y los archivos en `/migrations` son el registro. El SQL se ejecuta **a mano** en el editor de Supabase.
+**Migraciones: no hay sistema automático.** `schema.sql` es la fuente de verdad y `/migrations` es el registro. El SQL se ejecuta **a mano** en el editor de Supabase, **una sola vez**.
 
-**Regla dura:** solo archivos SQL puros para operaciones de base. Nunca seeds en JavaScript.
+**Regla dura:** solo archivos SQL puros. Nunca seeds en JavaScript. Y `seed.sql` **no se corre**: escribiría sobre datos vivos.
 
-### Orden obligatorio cuando la fase trae SQL
+### El orden entre código y SQL
 
-1. Correr el SQL a mano en **DEV**.
-2. **Verificar** en DEV que el flujo funciona de punta a punta.
-3. Correr el SQL a mano en **PROD**.
-4. **Verificar** en PROD.
-5. Recién ahí, `git push` a `main`.
+Con una sola base, el orden es lo único que separa un deploy limpio de producción rota. Depende del tipo de migración:
 
-El push dispara el deploy de Vercel. Si el código llega antes que la función SQL, producción queda llamando a algo que no existe.
+**Migración ADITIVA** (columna, función o índice nuevo):
+1. Correr el SQL
+2. Verificar
+3. `git push`
 
-**Migraciones que tocan contadores o secuencias** no se consideran cerradas porque el script haya corrido sin error. Se cierran cuando una query explícita de verificación (contador vs. MAX real del sufijo) devuelve **cero filas**. El seeding de contadores es el modo de falla silencioso: índices y backfill pueden andar mientras el contador queda en 0, y los inserts nuevos colisionan sin avisar.
+Si el código llega primero, producción llama a algo que no existe.
+
+**Migración DESTRUCTIVA** (`DROP COLUMN`, `DROP FUNCTION`):
+1. `git push` del código que ya no usa lo que se va a borrar
+2. Verificar producción andando
+3. Recién ahí correr el SQL
+
+Si el SQL va primero, producción lee algo que ya no existe.
+
+**Migraciones que tocan contadores o secuencias** no se cierran porque el script corra sin error. Se cierran cuando la query de verificación (contador vs. MAX real del sufijo) devuelve **cero filas**. El seeding de contadores es el modo de falla silencioso: índices y backfill pueden andar mientras el contador queda en 0, y los inserts nuevos colisionan sin avisar.
 
 ### No correr `npm run build` con el dev server levantado
 

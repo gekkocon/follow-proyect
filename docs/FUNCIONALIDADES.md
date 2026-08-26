@@ -212,5 +212,5 @@ El sistema informa cuántas filas se actualizaron, cuántas se crearon y cuánta
 
 - Subida de archivos real para logo/favicon (hoy solo se aceptan URLs externas)
 - Migración `favicon_url` en `brand_settings` debe ejecutarse manualmente en Supabase si aún no se corrió
-- Migraciones `010_task_codes.sql` (códigos) y `011_update_project_tasks.sql` (actualización masiva) también se ejecutan **a mano** en Supabase, en DEV y en PROD. Sin la 010 falla la importación; sin la 011 la actualización deja ver la vista previa pero falla al confirmar
+- Migraciones `010_task_codes.sql` (códigos) y `011_update_project_tasks.sql` (actualización masiva) también se ejecutan **a mano** en Supabase, **una sola vez**: hay un único proyecto Supabase, no hay entorno de ensayo separado. Sin la 010 falla la importación; sin la 011 la actualización deja ver la vista previa pero falla al confirmar
 - Confirmar en Supabase Auth los Redirect URLs del dominio de producción tras cada nuevo deploy

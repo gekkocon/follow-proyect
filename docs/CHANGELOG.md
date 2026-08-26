@@ -5,6 +5,58 @@
 
 ---
 
+## Limpieza previa al Work Plan — 2026-08-26
+
+**Alcance:** tres cosas que no agregan funcionalidad y que había que sacar del camino antes de reestructurar el Work Plan: el ORM muerto, la columna legacy de responsable, y una premisa falsa sobre los entornos que estaba escrita en `CLAUDE.md`.
+
+**Por qué ahora:** las tres tocan lo mismo que la reestructuración va a mover. Arrastrarlas hasta la migración del Work Plan habría significado migrar código muerto y decidir sobre una columna que ya no debía existir.
+
+### Eliminado — Drizzle
+
+Commit `29dc134`. Drizzle nunca llegó a usarse: el acceso a datos siempre fue el cliente de Supabase. Quedaba en el repositorio como andamio de una decisión anterior.
+
+- Borrados `drizzle.config.ts`, `src/db/` completo (`schema.ts`, `index.ts`, `connection.ts`, `seed.ts`) y `drizzle/` con sus snapshots.
+- Borrado también `src/lib/types.ts`: era el único archivo que importaba `src/db/schema`, y nadie lo importaba a él. El tipado real del dominio siempre fue `src/lib/supabase/types.ts`.
+- Fuera los cuatro scripts `db:*` de `package.json` y cinco dependencias huérfanas: `drizzle-orm`, `drizzle-kit`, `postgres`, `@libsql/client` y `tsx`.
+
+El bundle no cambió de tamaño en ninguna ruta, que es lo esperado: el código estaba muerto en el grafo de imports y nunca entraba a la compilación.
+
+### Eliminado — `tasks.assignee_id`, y el bug que escondía
+
+Commit `085bcb0`, más la migración `012_drop_task_assignee_id.sql`.
+
+`task_assignees` reemplazó a la columna de responsable único en la Fase 5E, pero la columna sobrevivió y **dos lugares seguían leyéndola**. Al medirla se encontró que estaba **enteramente vacía**, y eso convertía la redundancia en un bug con consecuencias visibles:
+
+- El contador de tareas del módulo Usuarios mostraba **0 para todos los usuarios**, sin importar cuántas tareas tuvieran asignadas.
+- `deleteUser` **nunca bloqueaba**: su chequeo de "este usuario tiene tareas asignadas" consultaba la columna vacía, así que cualquier usuario se podía borrar aunque tuviera trabajo a cargo.
+
+Los dos ahora cuentan por `task_assignees`. Se eliminó además el fallback de la vista global de tareas, que intentaba completar los responsables desde la columna vieja cuando la tabla join no devolvía filas.
+
+Se sacó `assignee_id` de `DbTask`, de `TaskWithRelations` (la propiedad `assignee`, que ya nadie escribía ni leía), de `schema.sql` junto con su índice `idx_tasks_assignee`, y de los tres `INSERT` de `seed.sql`.
+
+**La migración 012 ya se corrió. No hay que volver a correrla.** La verificación previa devolvió cero filas en riesgo y la posterior confirmó que la columna no existe.
+
+### Corregido — la sección 8 de `CLAUDE.md` describía dos bases que no existen
+
+Decía que `.env.local` apuntaba a un proyecto Supabase **DEV** y Vercel a uno **PROD**, y prescribía una secuencia de deploy de cinco pasos que pasaba por los dos. **Hay un solo proyecto Supabase.** Local y producción leen y escriben los mismos datos, y todo SQL corrido a mano impacta producción en el acto.
+
+La sección se reescribió entera. El cambio de fondo no es la tabla de entornos sino el orden de deploy, que ahora depende del tipo de migración:
+
+- **Aditiva** (columna, función o índice nuevo): SQL primero, verificar, después `git push`. Si el código llega primero, producción llama a algo que no existe.
+- **Destructiva** (`DROP COLUMN`, `DROP FUNCTION`): `git push` primero, verificar producción andando, después el SQL. Si el SQL va primero, producción lee algo que ya no existe.
+
+La 012 es el primer caso destructivo del proyecto y se ejecutó en ese orden.
+
+Quedó documentado también que `seed.sql` **no se corre**: con una sola base, escribiría sobre datos vivos. Y que el backup de Supabase es el único rollback que existe.
+
+### Deudas y decisiones que esto cierra
+
+- Deuda técnica: se elimina la de `assignee_id` conviviendo con `task_assignees`. Nace una en su lugar: `TaskWithSubtasks` en `types.ts` es un tipo legacy sin ningún consumidor, y se elimina en la migración del Work Plan.
+- Decisiones abiertas: se cierran las de **Drizzle** (se borra) y **`assignee_id`** (se elimina). También la de **nomenclatura de roles**, adoptando los reales: `admin / pm / developer / designer`.
+- Queda abierta la del **Work Plan**, cuyo modelo vive en `docs/ARQUITECTURA-WORKPLAN.md`, y las dos de la Fase 8B.
+
+---
+
 ## Fase 8B — Actualización masiva de tareas por código — 2026-08-25
 
 **Alcance:** botón "Actualizar tareas" junto a "Importar tareas" en el detalle de proyecto, que aplica un *patch* sobre tareas y subtareas ya existentes usando el código humano de la Fase 8A como llave.
