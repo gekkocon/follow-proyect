@@ -204,6 +204,8 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
 | **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
 | **D-20** | **Eliminar fase: bloqueo por defecto, cascada solo admin, atómica y autorizada en el servidor.** Una fase vacía se borra por el camino normal. Con tareas adentro, el borrado normal queda bloqueado, con el conteo en el mensaje. Existe un camino de cascada reservado a rol `admin`, con confirmación en dos pasos en la UI. La autorización se verifica **en el servidor**, contra la sesión, nunca contra un parámetro del cliente. La cascada corre en **una sola transacción** —`assignments` → subtareas → tareas → fase— y no se apoya en ningún `ON DELETE`. | ⬜ paso 1C |
+| **D-21** | **Desacoplada del bloque de la cascada.** El gate de `updateUserRole` y `createUser` NO entra en 1C-c. D-20 se cierra con **garantía condicional** y la condición se escribe en el código, no solo acá. Ver el fundamento abajo. | ✅ resuelta |
+| **D-22** | **Gate del módulo de usuarios**, paso propio. Convierte la garantía de D-20 de condicional en absoluta y es precondición de cualquier gate por rol posterior. Toca `updateUserRole`, `createUser`, `deleteUser` y probablemente el `TO anon` de las RPC (deuda 24). | ⬜ |
 
 ### El fundamento de D-15, para no reabrirlo
 
@@ -293,6 +295,37 @@ El chequeo del server action se conserva, pero cumple otra función: produce el
 mensaje de error y habilita el flujo de dos pasos. La garantía la da el de
 adentro, porque es el único que sobrevive a una llamada directa a PostgREST
 con la anon key del bundle.
+
+### El fundamento de D-21, para no reabrirlo
+
+La cadena que motivaba bloquear es real: `updateUserRole` no verifica quién
+llama (deuda 25), así que cualquiera con la anon key se pone `admin` y después
+usa la cascada legítimamente. La función SQL no falla — hace exactamente lo que
+debe: cruza el email del JWT contra `public.users` y encuentra `admin`. Lo
+falso es la premisa que lee.
+
+Lo que cambia la decisión es el alcance de esa cadena. El agujero no es "la
+cascada es insegura", es "`users.role` es escribible por cualquiera". En ese
+escenario un atacante ya edita roles y fabrica cuentas con service role;
+borrar fases es de lo menos dañino que puede hacer. **La cascada no agrega
+superficie: hereda una que ya está abierta y que hoy protege cosas más
+valiosas que las fases.**
+
+Y la ventaja de D-20 no es de grado sino de tipo. Los tres actions de borrado
+actuales usan `createServerClient()` con anon key y no saben quién pide el
+borrado. La cascada sería **el primer camino destructivo del repo con
+identidad derivada de la sesión**. Implementarla con premisa débil deja el
+repo mejor de lo que está; bloquearla hasta arreglar usuarios deja lo peor
+exactamente igual, más tiempo.
+
+**Obligación que deja abierta:** la función SQL de la cascada lleva un
+comentario en su cuerpo declarando que su chequeo vale lo que valga la
+integridad de `users.role`, con puntero a la deuda 25 y a D-22. La condición
+vive en el código, no solo en este documento.
+
+El argumento en contra, que se pesó: mezclar los dos permite escribir el
+chequeo de rol una vez y probarlo una vez. Perdió contra el tamaño del bloque
+— dos cirugías en la misma mesa.
 
 ---
 
@@ -478,6 +511,21 @@ colisiona en silencio — el modo de falla del seeding de contadores. Y declarar
 delta de conteos antes de importar: §2 dice que un número que cambia sin
 explicación es un bug.
 
+### 6.7 Orden de lo que viene
+
+**C-1 bloquea 1C-c, y esa dependencia sí es dura.** D-20 dice que una fase se
+vacía moviendo tareas a otra fase, no soltándolas — soltarlas las manda al
+namespace de códigos huérfanos, que es el problema que D-20 existe para
+evitar. Sin C-1, el bloqueo por defecto no tiene salida: una fase con tareas
+queda imborrable.
+
+1. **C-1** — mover tarea entre fases, con el código realocado del watermark
+   de la fase destino. Le da salida al bloqueo de D-20.
+2. **1C-c** — borrar fase: bloqueo por defecto, cascada admin, función
+   transaccional, UI de dos pasos. Ya no lo bloquea D-21.
+3. **D-22** — gate del módulo de usuarios.
+4. **Reordenar fases** (subir/bajar, sin librería) y **D-19**.
+
 ---
 
 ## 7. Lecciones de proceso de esta sesión
@@ -655,26 +703,24 @@ Y el editor **corre como superusuario y bypassea RLS**. Una migración que crea 
 ## 9. Primer paso del chat nuevo
 
 ```txt
-Proyecto follow-proyect — Etapa 1, paso 1C del Work Plan.
+Proyecto follow-proyect — Etapa 1, paso C-1 del Work Plan.
 
 Adjunto PLAN-SEMILLA-1C.md, que es el estado real: migraciones 013, 013b y
 013c aplicadas; pasos 1B y 1B+ y el gate de la §6.0 verificados en pantalla
-y pusheados, HEAD en 60fc7b4; CLAUDE.md ya patcheado al estado post-1B — la
+y pusheados, HEAD en 75dfe20; CLAUDE.md ya patcheado al estado post-1B — la
 §8 de este documento está GASTADA, no volver a aplicarla.
 
 Leelo antes de nada. Lo que está cerrado ahí no se rediscute: D-1 a D-19,
 las doce correcciones de hecho, y el criterio de aceptación de la §2.
 
-Objetivo de la sesión, en este orden:
-  1. §6.6 — probar el botón Importar end-to-end. Barato, y cierra la
-     013b de verdad. La §6.0 ya está cerrada.
-  2. Paso 1C (§6.2): ABM de fases — crear, editar, borrar, reordenar.
-  3. Mover tarea entre fases, con el código realocado del watermark
-     destino (C-1).
-  4. Cerrar D-19: "Nueva tarea sin fase" desaparece de todos lados; un
-     proyecto con cero fases muestra "Crear primera fase".
-  5. phase.status y phase.priority en pantalla.
-  6. "Actualizar tareas" deshabilitado con leyenda (D-16).
+Objetivo de la sesión:
+  1. C-1 — mover tarea entre fases, con el código realocado del
+     watermark destino. Es lo que le da salida al bloqueo de D-20.
+
+Ya cerrado y fuera de discusión: §6.0, §6.1, §6.6, §6.2 (1C-b: alta y
+edición de fases, D-16), y D-21, que quedó desacoplada de la cascada.
+Pendiente después de C-1: 1C-c (borrar fase), D-22 (gate de usuarios),
+reordenar fases y D-19.
 
 Contexto operativo:
   - Claude Code puede bloquear Bash, Write y Edit por un clasificador que
