@@ -69,6 +69,10 @@ Corregida el 27 ago 2026. F1 y F2 estaban invertidas por la pérdida documentada
 abajo. Los porcentajes no se mueven: las dos fases afectadas estaban y siguen en
 0.0 %, y el promedio del proyecto sobre las cinco fases queda igual.
 
+**Actualizado el 27 ago 2026, cierre de 1C-b.** Los conteos de tareas no se movieron: 35, 2 y 3. Lo que cambió son las fases: el proyecto 9 tiene ahora dos (`F0` "estructura y alcance modificado" y `F1` "desarrollo proyecto"), creadas desde la UI. El proyecto 5 recibió una fase por error y se borró con SQL; su `phase_code_seq` quedó en 1, así que **F0 está quemado ahí** y su próxima fase nacerá `F1` con `sort_order` 1 siendo la primera de la lista.
+
+Consecuencia de alcance: el proyecto 5 dejó de ser plano durante unos minutos y volvió a serlo. Es el único que ejercita la rama sin fases, y por eso se revirtió — D-19 está fuera del alcance de 1C-b y no se decide de rebote.
+
 ### Watermarks y códigos quemados — 27 ago 2026
 
 | Contador | Valor | Vivas | Quemados |
@@ -81,6 +85,9 @@ abajo. Los porcentajes no se mueven: las dos fases afectadas estaban y siguen en
 | `orphan_task_code_seq` p7 | 6 | 5 | T06 |
 | `orphan_task_code_seq` p5 | 3 | 2 | T03 |
 | `orphan_task_code_seq` p9 | 7 | 3 | T03–T06 |
+| `phase_code_seq` p5 | 1 | 0 | F0 (fase borrada) |
+| `phase_code_seq` p7 | 5 | 5 | — |
+| `phase_code_seq` p9 | 2 | 2 | — |
 
 El sandbox estrena una clase de quemado que antes no estaba descrita: T03 a T06
 nunca existieron. Los quemó el Pass 3 de la 013b al elevar el watermark por
@@ -192,7 +199,7 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-5** | `subtasks.completed` se elimina. Verificado: cero filas sucias, y la tabla cruzada da una **biyección exacta** con `status='done'` (62 todo/false, 1 in_progress/false, 43 done/true). Cero información propia. | ✅ verde |
 | **D-14** | La 014 es destructiva **y correctiva a la vez**: en la misma transacción dropea las columnas y republica `import_project_tasks` sin referencias a ellas. El barrido real es de **25+ puntos en 7 archivos**, no los 3 que listaba `PLAN-SEMILLA-1B §5.6`. Ver §6.3. | ⬜ |
 | **D-15** | **Avance, regla C.** Las tareas sin fase **no entran** en el número del proyecto cuando el proyecto tiene fases; el bloque "Sin fase" muestra el suyo aparte. Un proyecto sin fases promedia sus tareas planas. Fase sin tareas → "—", nunca 0 %. Amienda `ARQUITECTURA §5`. La regla entera vive en `projectProgress()`. | ✅ |
-| **D-16** | "Actualizar tareas" queda **como está** en el 1B y se resuelve en el 1C. Su direccionamiento por guion (`F3-T08`) murió con los códigos locales; hoy el botón solo puede terminar en error. Ver §6.2. | ⬜ |
+| **D-16** | "Actualizar tareas" queda **como está** en el 1B y se resuelve en el 1C. Su direccionamiento por guion (`F3-T08`) murió con los códigos locales; hoy el botón solo puede terminar en error. Ver §6.2. Cerrado en 1C-b: botón `disabled` con `title="Disponible de nuevo en la Etapa 3"`. | ✅ |
 | **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | 🟡 gate de UI aplicado el 26 ago (§6.0). Se cierra con D-19. |
 | **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
 | **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
@@ -351,7 +358,21 @@ Criterio de aceptación: crear una tarea en F1 le da código `T06` (F1 tiene 5
 tareas), aparece dentro de F1, y el avance de F1 baja de 0.0 % a 0.0 % —no
 cambia, porque la tarea nueva no está `done`— mientras el conteo pasa a 6.
 
-### 6.2 Paso 1C — ABM de fases
+### ~~6.2 Paso 1C-b — alta y edición de fases~~ · CERRADO
+
+**Cerrado el 27 ago.** Dos archivos nuevos —`src/lib/supabase/phase-actions.ts` y `components/projects/PhaseForm.tsx`— y catorce ediciones en `ProjectTasksClient.tsx`. Sin SQL: `alloc_phase_code` existía desde la 013 y nadie la llamaba.
+
+**La primera escritura real contra `phases` desde la app.** Las cinco filas previas entraron por un INSERT del editor SQL, que corre como superusuario; ésta usa la anon key. Era el cuadrante que la 013c ya hizo fallar una vez, y pasó.
+
+Verificado en pantalla, cuatro pruebas: alta (F0 y F1 en el proyecto 9), edición de los cinco campos con `code`/`sort_order`/`task_code_seq` intactos, D-16 gris con leyenda, y el empty state sobre un proyecto descartable ya borrado.
+
+**`sort_order` se deriva del sufijo del código**, no queda en el DEFAULT 0. Con una sola fase los dos escenarios son indistinguibles —incluso en pantalla, porque `byCode` desempata—; la segunda fase lo partió: F1 salió con `sort_order` 1.
+
+**Dos guardas, no una.** El botón "Nueva fase" vive en la cabecera, fuera del ternario del empty state, así que el formulario necesitó `!showNewPhase` en la condición del empty state para no ser un botón muerto. Y una vez abierto, el pie "Nueva tarea" seguía visible porque solo lo guardaba `!hasPhases`: la pantalla ofrecía crear una huérfana mientras se creaba la primera fase. Los dos bloques que compiten por ese espacio llevan ahora el mismo término. Es la tercera vez que este archivo pide gatear una condición además de esconder un botón.
+
+**`createPhase` aborta si el RPC falla y no inserta.** Es deliberadamente lo contrario de `allocCode` en `project-task-actions.ts`, que devuelve null y deja nacer una fila sin código (deuda 14). No unificarlos sin decidirlo.
+
+Quedó fuera y sigue abierto: reordenar fases (paso propio, con subir/bajar, sin librería), borrar fases (1C-c, D-20 y D-21), y D-19.
 
 Crear, editar, borrar y reordenar fases (`sort_order`, que existe y nadie
 consume). Mover tarea entre fases: **el código se realoca** del watermark de la
@@ -503,6 +524,12 @@ explicación es un bug.
    git vive fuera de su sesión. Antes de commitear, el `git status` que vale es
    el de la terminal propia. Sus números sí sirven: las líneas cambiadas
    reconciliaron con git a la primera.
+
+10. **Un número que la pantalla no puede falsar necesita la query.** `sort_order`
+   derivado y `sort_order` en su default dan el mismo render, porque el
+   desempate por código los vuelve indistinguibles. La verificación en pantalla
+   es necesaria y no siempre suficiente: cuando dos hipótesis producen el mismo
+   píxel, el gate es la base.
 
 ---
 

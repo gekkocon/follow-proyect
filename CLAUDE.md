@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, paso 1B** (migraciones 013, 013b y 013c aplicadas).
+Última fase cerrada: **Etapa 1, paso 1C-b** (alta y edición de fases desde la UI).
 
 ---
 
@@ -53,7 +53,9 @@ Server Component (fetch) → props → Client Component (interacción)
 - Los server actions **devuelven siempre `{ error: string | null }`**. Nunca lanzan excepciones. El cliente muestra ese string tal cual.
 - Siempre `revalidatePath` después de escribir.
 
-**Archivos de acciones (7):** `project-actions`, `project-task-actions`, `project-import-actions`, `task-actions`, `member-actions`, `user-actions`, `brand-actions`.
+**Archivos de acciones (8):** `project-actions`, `project-task-actions`, `project-import-actions`, `task-actions`, `member-actions`, `user-actions`, `brand-actions`, `phase-actions`.
+
+`phase-actions.ts` nació en el paso 1C-b con `createPhase` y `updatePhase`. Es el único archivo de acciones que escribe en `phases`.
 
 **Clientes de Supabase** (`src/lib/supabase/server.ts`):
 
@@ -271,7 +273,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 2. `/users` y `/settings` se protegen solo contra "no logueado", **no por rol**. La ocultación por rol es visual.
 3. `deleteUser` deja la cuenta de Supabase Auth huérfana.
 4. Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.
-5. `TaskRow.tsx`: 746 líneas con tres componentes adentro. Archivo de mayor riesgo del repo.
+5. `TaskRow.tsx`: 775 líneas con tres componentes adentro. Archivo de mayor riesgo del repo.
 6. `estimated_cost` se guarda pero no se totaliza en ninguna vista.
 7. `dependencies` se guarda y se resuelve en la importación, pero no se visualiza ni bloquea nada.
 8. `projects.status = 'overdue'` nunca se setea solo. No hay job.
@@ -292,6 +294,9 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
 24. Las RPC existentes se otorgan con `TO anon, authenticated` — `import_project_tasks` y los tres allocators. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
 25. `updateUserRole` cambia el rol de cualquier usuario sin verificar quién llama, y `createUser` usa la service role sin guarda de autorización. Son **precondición** de cualquier gate por rol: quien puede autopromoverse a `admin` después usa la cascada legítimamente.
+26. `createPhase` pide el código por RPC y después inserta: dos requests, dos transacciones. Si el insert falla, el código ya quedó quemado. Es la no-atomicidad de PostgREST, no un descuido — pero significa que cada alta fallida consume un código de fase.
+27. El avance del proyecto **desaparece** de la tarjeta cuando `projectProgress` devuelve null. Un proyecto cuyas fases estén todas vacías pierde la barra entera en vez de mostrar "—", que es lo que sí hace cada fase. Observado en el proyecto 9.
+28. `StatusBadge` llama "Completada" al valor `done` y `TASK_STATUSES` lo llama "Finalizada". Desde 1C-b las dos etiquetas conviven en la misma pantalla: el badge de la cabecera de fase y el select de su formulario. Es la doble lista de la deuda 4, ahora visible.
 
 ---
 

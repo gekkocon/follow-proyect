@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Save, X, Upload, RefreshCw, ChevronRight } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
 import { ProgressBar } from './ProgressBar';
 import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
-import { phaseProgress, type ProjectWorkPlan } from '@/src/lib/work-plan';
+import { phaseProgress, type ProjectWorkPlan, type PhaseWithTasks } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type { TaskWithFullRelations, DbTask, DbUser } from '@/src/lib/supabase/types';
+import { PhaseForm } from './PhaseForm';
+import { StatusBadge } from './StatusBadge';
+import { PriorityBadge } from './PriorityBadge';
 
 // ─────────────────────────────────────────────
 // Tuning constants
@@ -247,6 +250,13 @@ type WorkSectionProps = {
    * own button at the bottom of the list.
    */
   phaseId?: number;
+  /**
+   * Etapa 1, paso 1C-b — the phase row itself, for the status/priority
+   * badges and the edit form. Undefined in the "Sin fase" block, which
+   * has no phase behind it. `code` and `name` stay as separate props for
+   * exactly that reason.
+   */
+  phase?: PhaseWithTasks;
 };
 
 function WorkSection({
@@ -261,12 +271,14 @@ function WorkSection({
   onDelete,
   onRefresh,
   phaseId,
+  phase,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
   // Each section owns its form state, so opening one phase's form does not
   // open every other one.
   const [showNewTask, setShowNewTask] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   // Paso 1C — a real phase stays expandable with zero tasks: otherwise it can
   // never be opened, and a phase that cannot be opened can never receive its
@@ -278,51 +290,89 @@ function WorkSection({
     <div className="rounded-xl border border-border bg-white shadow-sm">
       {/* Header. A div and not a button: it holds block-level children, and
           TaskRow already uses this same clickable-div pattern for its title. */}
-      <div
-        onClick={() => expandable && onToggle()}
-        className={cn(
-          'flex items-center gap-3 px-4 py-3',
-          expandable && 'cursor-pointer hover:bg-muted/20 transition-colors'
-        )}
-      >
-        {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada.
-            Una fase es la excepción: abre para poder recibir su primera. */}
-        <ChevronRight
-          size={16}
-          className={cn(
-            'shrink-0 text-muted-foreground transition-transform',
-            open && 'rotate-90',
-            !expandable && 'invisible'
-          )}
+      {editing && phase ? (
+        <PhaseForm
+          mode="edit"
+          projectId={projectId}
+          phase={phase}
+          onSaved={() => {
+            setEditing(false);
+            onRefresh();
+          }}
+          onCancel={() => setEditing(false)}
         />
+      ) : (
+        <div
+          onClick={() => expandable && onToggle()}
+          className={cn(
+            'flex items-center gap-3 px-4 py-3',
+            expandable && 'cursor-pointer hover:bg-muted/20 transition-colors'
+          )}
+        >
+          {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada.
+              Una fase es la excepción: abre para poder recibir su primera. */}
+          <ChevronRight
+            size={16}
+            className={cn(
+              'shrink-0 text-muted-foreground transition-transform',
+              open && 'rotate-90',
+              !expandable && 'invisible'
+            )}
+          />
 
-        {code && (
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">{code}</span>
-        )}
+          {code && (
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">{code}</span>
+          )}
 
-        <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
-          {name}
-        </span>
+          <span className="flex-1 min-w-0 truncate text-sm font-semibold text-foreground">
+            {name}
+          </span>
 
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {tasks.length} tarea{tasks.length === 1 ? '' : 's'}
-        </span>
+          {/* Badges reutilizados de tarea/proyecto: DbPhase['status'] y
+              DbPhase['priority'] son la misma unión, no hace falta una tercera
+              lista de etiquetas. */}
+          {phase && (
+            <div className="shrink-0 flex items-center gap-1.5">
+              <StatusBadge status={phase.status} />
+              <PriorityBadge priority={phase.priority} />
+            </div>
+          )}
 
-        <div className="shrink-0 w-24">
-          {progress === null ? (
-            <span className="block text-right text-xs text-muted-foreground">—</span>
-          ) : (
-            <>
-              <span className="block text-right text-xs text-muted-foreground mb-1">
-                {progress.toFixed(1)}%
-              </span>
-              {/* showLabel explícito: el default es true e imprimiría "78/100"
-                  al lado del 77.8 %, dos números del mismo dato. */}
-              <ProgressBar done={Math.round(progress)} total={100} showLabel={false} />
-            </>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {tasks.length} tarea{tasks.length === 1 ? '' : 's'}
+          </span>
+
+          <div className="shrink-0 w-24">
+            {progress === null ? (
+              <span className="block text-right text-xs text-muted-foreground">—</span>
+            ) : (
+              <>
+                <span className="block text-right text-xs text-muted-foreground mb-1">
+                  {progress.toFixed(1)}%
+                </span>
+                {/* showLabel explícito: el default es true e imprimiría "78/100"
+                    al lado del 77.8 %, dos números del mismo dato. */}
+                <ProgressBar done={Math.round(progress)} total={100} showLabel={false} />
+              </>
+            )}
+          </div>
+
+          {/* stopPropagation obligatorio: la cabecera entera lleva el onClick que
+              colapsa la sección, y sin él editar cerraría la fase a la vez. */}
+          {phase && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditing(true);
+              }}
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+              title="Editar fase"
+            >
+              <Pencil size={13} />
+            </button>
           )}
         </div>
-      </div>
+      )}
 
       {open && (hasTasks || isPhase) && (
         <div className="border-t border-border bg-muted/10 p-3 space-y-3">
@@ -383,6 +433,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
   const [showImport, setShowImport] = useState(false);
   // Fase 8B — mismo panel, modo 'update'. Nunca los dos abiertos a la vez.
   const [showUpdate, setShowUpdate] = useState(false);
+  const [showNewPhase, setShowNewPhase] = useState(false);
 
   // Collapse state, local. No fourth Zustand store: nothing outside this
   // subtree cares which phases are open. Phases missing from the record fall
@@ -441,6 +492,19 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
           {!showNewTask && (
             <button
               onClick={() => {
+                setShowImport(false);
+                setShowUpdate(false);
+                setShowNewPhase(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={14} />
+              Nueva fase
+            </button>
+          )}
+          {!showNewTask && (
+            <button
+              onClick={() => {
                 setShowUpdate(false);
                 setShowImport(true);
               }}
@@ -456,7 +520,9 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                 setShowImport(false);
                 setShowUpdate(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              disabled
+              title="Disponible de nuevo en la Etapa 3"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RefreshCw size={14} />
               Actualizar tareas
@@ -466,7 +532,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
       </div>
 
       {/* Work plan */}
-      {workPlan.allTasks.length === 0 && !hasPhases && !showNewTask ? (
+      {workPlan.allTasks.length === 0 && !hasPhases && !showNewTask && !showNewPhase ? (
         <div className="rounded-xl border border-dashed border-border bg-white p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No hay tareas para este proyecto.{' '}
@@ -495,6 +561,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   tasks={phase.tasks}
                   progress={phase.progress}
                   phaseId={phase.id}
+                  phase={phase}
                   open={isPhaseOpen(phase.id)}
                   onToggle={() => togglePhase(phase.id)}
                   users={users}
@@ -533,7 +600,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
             />
           )}
 
-          {!hasPhases &&
+          {!hasPhases && !showNewPhase &&
             (showNewTask ? (
               <NewTaskRow
                 projectId={projectId}
@@ -553,6 +620,19 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                 Nueva tarea
               </button>
             ))}
+
+          {showNewPhase && (
+            <PhaseForm
+              mode="create"
+              projectId={projectId}
+              onSaved={() => {
+                setShowNewPhase(false);
+                setShowNewTask(false);
+                refresh();
+              }}
+              onCancel={() => setShowNewPhase(false)}
+            />
+          )}
         </div>
       )}
 
