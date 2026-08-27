@@ -341,6 +341,16 @@ el botón en la app. Es barato y cierra la 013b de verdad.
 7. **"No hay nada que corregir" es un resultado válido.** Ante un síntoma en
    pantalla y un fuente sano, la salida correcta es reportar la discrepancia,
    no fabricar un arreglo.
+8. **Una copia que puede desfasarse, se desfasa.** Los archivos del proyecto
+   de Claude.ai eran copias subidas a mano: ningún `git push` las toca, y un
+   chat nuevo que las lea razona sobre el estado anterior sin saberlo. Ya
+   falló en las dos direcciones — el parche de la 1B §6 nunca llegó al repo,
+   y el de la 1C nunca llegó al proyecto.
+   **Regla: el repo local es la única fuente para las dos capas.** Claude Code
+   lo lee del disco; la capa de conversación recibe los documentos como
+   adjunto desde la carpeta del repo, en el primer mensaje. Los archivos del
+   proyecto quedan vacíos a propósito.
+   Cerrar sesión son dos movimientos, no tres: commit y push.
 
 ---
 
