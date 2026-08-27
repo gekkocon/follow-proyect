@@ -211,6 +211,104 @@ export async function deleteProjectTask(
 }
 
 // ─────────────────────────────────────────────
+// MOVE BETWEEN PHASES (Etapa 1, paso C-1)
+// ─────────────────────────────────────────────
+
+/**
+ * Etapa 1, paso C-1 — moves a task into a phase and reallocates its code
+ * from the destination watermark.
+ *
+ * The move is one-way: a task enters a phase, it never returns to the
+ * project-level orphan namespace. Allowing "Sin fase" as a destination
+ * would mint by hand exactly the orphan rows the create path forbids, and
+ * would put a second allocator in play for one operation.
+ *
+ * The code is NOT carried over. A task leaving F1 as T03 enters F4 with
+ * F4's next number; T03 stays burned in F1 because watermarks never
+ * decrease. Carrying the code over would collide with the destination's
+ * unique index (`idx_tasks_phase_code`) the moment that number is taken
+ * there.
+ *
+ * Validation runs BEFORE the allocation on purpose: a rejected move must
+ * not consume a code of the destination phase. And a failed allocation
+ * ABORTS instead of writing `phase_id` alone — that would land the task in
+ * the new phase still wearing its old code, which is the silent drift this
+ * counter design exists to prevent. Same stance as `createPhase`, opposite
+ * to the `allocCode` helper above (deuda #14).
+ *
+ * Subtask codes are local to the task (`tasks.subtask_code_seq`) and are
+ * not touched: `composeCode` rebuilds them under the task's new code on the
+ * next render.
+ *
+ * Nothing is logged. The repo has no audit trail of any kind (deuda #16),
+ * and `legacy_code` is not a place to stash the previous code: it holds the
+ * pre-Etapa-1 code and overwriting it would destroy the only trace of
+ * migration 013.
+ */
+export async function moveTaskToPhase(
+  taskId: number,
+  projectId: number,
+  targetPhaseId: number
+): Promise<{ code: string | null; error: string | null }> {
+  const supabase = createServerClient();
+
+  // `maybeSingle` and not `single`: a missing row is an expected outcome
+  // here and deserves its own message, not PostgREST's zero-rows error.
+  const { data: task, error: taskError } = await supabase
+    .from('tasks')
+    .select('id, project_id, phase_id')
+    .eq('id', taskId)
+    .maybeSingle();
+
+  if (taskError) return { code: null, error: taskError.message };
+  if (!task) return { code: null, error: 'La tarea no existe.' };
+  if (task.project_id !== projectId) {
+    return { code: null, error: 'La tarea no pertenece a este proyecto.' };
+  }
+  if (task.phase_id === targetPhaseId) {
+    return { code: null, error: 'La tarea ya está en esa fase.' };
+  }
+
+  const { data: phase, error: phaseError } = await supabase
+    .from('phases')
+    .select('id, project_id')
+    .eq('id', targetPhaseId)
+    .maybeSingle();
+
+  if (phaseError) return { code: null, error: phaseError.message };
+  if (!phase) return { code: null, error: 'La fase de destino no existe.' };
+  if (phase.project_id !== projectId) {
+    return { code: null, error: 'La fase de destino no pertenece a este proyecto.' };
+  }
+
+  const { data: allocated, error: rpcError } = await supabase.rpc(
+    'alloc_task_code_in_phase',
+    { p_phase_id: targetPhaseId }
+  );
+
+  if (rpcError) return { code: null, error: rpcError.message };
+
+  const code = String(allocated ?? '').trim();
+  if (!code) {
+    return { code: null, error: 'No se pudo generar el código en la fase de destino.' };
+  }
+
+  // `project_id` is filtered too, so a mismatched pair writes nothing even
+  // if the checks above were ever bypassed.
+  const { error } = await supabase
+    .from('tasks')
+    .update({ phase_id: targetPhaseId, code })
+    .eq('id', taskId)
+    .eq('project_id', projectId);
+
+  if (error) return { code: null, error: error.message };
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath('/dashboard');
+  return { code, error: null };
+}
+
+// ─────────────────────────────────────────────
 // SUBTASKS
 // ─────────────────────────────────────────────
 

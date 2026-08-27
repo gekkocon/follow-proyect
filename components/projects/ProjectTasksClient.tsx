@@ -10,7 +10,7 @@ import { ProgressBar } from './ProgressBar';
 import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
 import { phaseProgress, type ProjectWorkPlan, type PhaseWithTasks } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
-import type { TaskWithFullRelations, DbTask, DbUser } from '@/src/lib/supabase/types';
+import type { TaskWithFullRelations, DbTask, DbUser, DbPhase } from '@/src/lib/supabase/types';
 import { PhaseForm } from './PhaseForm';
 import { StatusBadge } from './StatusBadge';
 import { PriorityBadge } from './PriorityBadge';
@@ -18,14 +18,22 @@ import { PriorityBadge } from './PriorityBadge';
 // ─────────────────────────────────────────────
 // Tuning constants
 //
-// Both come from the relevamiento, not from taste: the normal case is ~12
-// items, 60 % of nodes have no children at all, and one node reached 150.
-// Sizing these against today's small numbers builds something that breaks the
-// next time the agency loads a real plan.
+// Sized against the relevamiento, not against today's small numbers: the
+// normal case is ~12 items, 60 % of nodes have no children at all, and one
+// node reached 150. Building for the current data breaks the next time the
+// agency loads a real plan.
+//
+// PHASES_OPEN_BY_DEFAULT_MAX is the exception and no longer follows from
+// that measurement — D-30 set it to 0 on legibility grounds. See its own
+// comment below.
 // ─────────────────────────────────────────────
 
-/** Above this many phases, everything starts collapsed so the project fits. */
-const PHASES_OPEN_BY_DEFAULT_MAX = 5;
+// D-30: 0 means every phase starts collapsed, whatever the project's
+// size. The section header already carries code, name, status, task
+// count and progress, which is what a human scans for. The knob stays
+// as a number instead of a boolean so raising it is a one-character
+// change if we ever want small projects to open again.
+const PHASES_OPEN_BY_DEFAULT_MAX = 0;
 
 /** Tasks rendered per section before the cut. No virtualization, no library. */
 const TASKS_VISIBLE_PER_PHASE = 25;
@@ -189,9 +197,11 @@ type TaskListProps = {
   projectId: number;
   onDelete: (taskId: number) => void;
   onRefresh: () => void;
+  allPhases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
+  onMoved: (destPhaseId: number) => void;
 };
 
-function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh }: TaskListProps) {
+function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved }: TaskListProps) {
   const [showAll, setShowAll] = useState(false);
 
   const hidden = tasks.length - TASKS_VISIBLE_PER_PHASE;
@@ -206,8 +216,10 @@ function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh }: T
           phaseCode={phaseCode}
           users={users}
           projectId={projectId}
+          allPhases={allPhases}
           onDelete={onDelete}
           onRefresh={onRefresh}
+          onMoved={onMoved}
         />
       ))}
 
@@ -257,6 +269,8 @@ type WorkSectionProps = {
    * exactly that reason.
    */
   phase?: PhaseWithTasks;
+  allPhases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
+  onMoved: (destPhaseId: number) => void;
 };
 
 function WorkSection({
@@ -272,6 +286,8 @@ function WorkSection({
   onRefresh,
   phaseId,
   phase,
+  allPhases,
+  onMoved,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
@@ -384,6 +400,8 @@ function WorkSection({
               projectId={projectId}
               onDelete={onDelete}
               onRefresh={onRefresh}
+              allPhases={allPhases}
+              onMoved={onMoved}
             />
           )}
 
@@ -440,7 +458,11 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
   // back to the default, so a phase created later inherits it instead of
   // appearing closed for no reason.
   const [phaseOpen, setPhaseOpen] = useState<Record<number, boolean>>({});
-  const [orphansOpen, setOrphansOpen] = useState(true);
+  // D-31: starts collapsed like every phase does since D-30. Two rules for
+  // the same gesture is worse than either rule on its own. Deliberately not
+  // derived from `openByDefault`: that one keys off the phase count, and
+  // orphan tasks have nothing to do with how many phases exist.
+  const [orphansOpen, setOrphansOpen] = useState(false);
 
   const openByDefault = workPlan.phases.length <= PHASES_OPEN_BY_DEFAULT_MAX;
   const isPhaseOpen = (phaseId: number) => phaseOpen[phaseId] ?? openByDefault;
@@ -460,6 +482,24 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
     const fresh = await getProjectWorkPlan(projectId);
     setWorkPlan(fresh);
   }
+
+  // C-1: a task moved into a collapsed phase would vanish from the screen
+  // the moment refresh() rebuilds the tree, which reads as a delete. Open
+  // the destination first, then refresh. Setting it to true works whatever
+  // the default open state is.
+  function handleMoved(destPhaseId: number) {
+    setPhaseOpen((prev) => ({ ...prev, [destPhaseId]: true }));
+    refresh();
+  }
+
+  // Minimal shape for the move dropdown. Recomputed per render on purpose:
+  // the array is one small object per phase and skipping useMemo keeps the
+  // dependency list out of a 600-line component.
+  const phaseOptions = workPlan.phases.map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+  }));
 
   // Etapa 1, paso 1B — deleting a task changes the progress of its phase and of
   // the project, so the list can no longer be patched locally: both bars would
@@ -568,6 +608,8 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   projectId={projectId}
                   onDelete={handleDelete}
                   onRefresh={refresh}
+                  allPhases={phaseOptions}
+                  onMoved={handleMoved}
                 />
               ))}
 
@@ -583,6 +625,8 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   projectId={projectId}
                   onDelete={handleDelete}
                   onRefresh={refresh}
+                  allPhases={phaseOptions}
+                  onMoved={handleMoved}
                 />
               )}
             </>
@@ -597,6 +641,8 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
               projectId={projectId}
               onDelete={handleDelete}
               onRefresh={refresh}
+              allPhases={phaseOptions}
+              onMoved={handleMoved}
             />
           )}
 

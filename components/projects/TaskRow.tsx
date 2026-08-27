@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronRight,
   AlertOctagon,
@@ -9,6 +10,7 @@ import {
   X,
   Plus,
   Clock,
+  FolderInput,
   Pencil,
 } from 'lucide-react';
 import { format, parseISO, isPast, isToday } from 'date-fns';
@@ -21,6 +23,7 @@ import { AssigneeSelector, AssigneeAvatars } from './AssigneeSelector';
 import {
   updateProjectTask,
   deleteProjectTask,
+  moveTaskToPhase,
   createProjectSubtask,
   updateProjectSubtask,
   deleteProjectSubtask,
@@ -33,6 +36,7 @@ import type {
   DbTask,
   DbSubtask,
   DbUser,
+  DbPhase,
 } from '@/src/lib/supabase/types';
 
 // ─────────────────────────────────────────────
@@ -422,6 +426,15 @@ function NewSubtaskRow({ taskId, projectId, users, onSaved, onCancel }: NewSubta
 }
 
 // ─────────────────────────────────────────────
+// MOVE TO PHASE (Etapa 1, paso C-1)
+// ─────────────────────────────────────────────
+
+/** Menu is right-aligned to its trigger so it never runs off the row. */
+const MOVE_MENU_WIDTH = 248;
+/** Approximate height, used to decide whether the menu opens up or down. */
+const MOVE_MENU_MAX_HEIGHT = 260;
+
+// ─────────────────────────────────────────────
 // TaskRow (main export)
 // ─────────────────────────────────────────────
 
@@ -431,12 +444,119 @@ type TaskRowProps = {
   phaseCode?: string | null;
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
+  /** Every phase of the project, for the C-1 move control. */
+  allPhases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
   onDelete: (taskId: number) => void;
   onRefresh: () => void;
+  /** Fired after a successful move, with the destination phase id. */
+  onMoved: (destPhaseId: number) => void;
 };
 
-export function TaskRow({ task, phaseCode, users, projectId, onDelete, onRefresh }: TaskRowProps) {
+export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved }: TaskRowProps) {
   const taskCode = composeCode([phaseCode], task.code);
+
+  // C-1 · destinations exclude the task's own phase. For an orphan task
+  // `task.phase_id` is null and every phase qualifies. There is no reverse
+  // move on purpose: a task enters a phase and does not go back to the
+  // project-level orphan namespace (D-25).
+  const moveTargets = allPhases.filter((p) => p.id !== task.phase_id);
+
+  const [moving, setMoving] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [movePos, setMovePos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const moveButtonRef = useRef<HTMLButtonElement>(null);
+
+  function openMoveMenu() {
+    if (moving || !moveButtonRef.current) return;
+    const rect = moveButtonRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top =
+      spaceBelow >= MOVE_MENU_MAX_HEIGHT ? rect.bottom + 4 : rect.top - MOVE_MENU_MAX_HEIGHT - 4;
+    setMovePos({ top, left: Math.max(8, rect.right - MOVE_MENU_WIDTH) });
+    setMoveOpen((v) => !v);
+  }
+
+  // Position is computed once on open and the menu is `fixed`, so a scroll or
+  // resize would leave it floating away from its row: close instead of
+  // recomputing. The trigger is excluded from the outside-click handler, so
+  // clicking it while open still toggles rather than closing and reopening.
+  useEffect(() => {
+    if (!moveOpen) return;
+    const close = () => setMoveOpen(false);
+    const onDown = (e: MouseEvent) => {
+      if (moveButtonRef.current?.contains(e.target as Node)) return;
+      setMoveOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoveOpen(false);
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moveOpen]);
+
+  /**
+   * D-32 — the menu closes and the trigger disables before the await, so no
+   * second click target exists while the move is in flight. Two concurrent
+   * calls would each reserve a code from the destination phase and burn one
+   * for nothing: watermarks never decrease, so a double submit leaves a
+   * permanent gap in that phase's numbering. This guard is UI-level only —
+   * the database holds no lock of its own here (D-27).
+   */
+  async function handleMove(destPhaseId: number) {
+    if (moving) return;
+    setMoveOpen(false);
+    setMoving(true);
+    const { error } = await moveTaskToPhase(task.id, projectId, destPhaseId);
+    setMoving(false);
+    if (error) {
+      alert(error);
+      return;
+    }
+    // Not onRefresh: every phase starts collapsed since D-30, so the task
+    // would vanish from the screen and read as a delete. `onMoved` opens the
+    // destination first, then rebuilds the tree.
+    onMoved(destPhaseId);
+  }
+
+  const moveMenu =
+    moveOpen && typeof window !== 'undefined'
+      ? createPortal(
+          <div
+            role="listbox"
+            style={{ top: movePos.top, left: movePos.left, width: MOVE_MENU_WIDTH }}
+            className="fixed z-[9999] max-h-[260px] overflow-y-auto rounded-lg border border-border bg-white shadow-lg py-1 animate-in fade-in-0 zoom-in-95 duration-100"
+          >
+            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Mover a
+            </div>
+            {moveTargets.map((p) => (
+              <button
+                key={p.id}
+                role="option"
+                aria-selected={false}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleMove(p.id);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted"
+              >
+                <span className="shrink-0 font-mono text-muted-foreground">{p.code}</span>
+                <span className="truncate">{p.name}</span>
+              </button>
+            ))}
+          </div>,
+          document.body
+        )
+      : null;
+
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showNewSubtask, setShowNewSubtask] = useState(false);
@@ -704,6 +824,21 @@ export function TaskRow({ task, phaseCode, users, projectId, onDelete, onRefresh
           >
             <Pencil size={12} />
           </button>
+
+          {/* Move to phase (C-1). Hidden when there is nowhere to move to:
+              a project with no phases, or a task alone in the only one. */}
+          {moveTargets.length > 0 && (
+            <button
+              ref={moveButtonRef}
+              onClick={openMoveMenu}
+              disabled={moving}
+              title={moving ? 'Moviendo…' : 'Mover a otra fase'}
+              className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <FolderInput size={12} />
+            </button>
+          )}
+          {moveMenu}
 
           {/* Delete button */}
           <button
