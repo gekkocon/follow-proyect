@@ -276,6 +276,17 @@ tareas de una fase viven en `phases.task_code_seq`, que desaparece con la fila.
 No hay contador que elevar. Es lo contrario del camino `SET NULL`, cuyo problema
 era justamente el namespace del proyecto.
 
+**Dónde vive el chequeo — resuelto por medición, 27 ago 2026.** Queda dentro
+de la función. Una sonda invocada desde los dos clientes probó que
+`createAuthServerClient()` propaga el email del JWT hasta el cuerpo de la
+función, y que el cruce contra `public.users` resuelve el rol. La receta
+completa de grants quedó en `CLAUDE.md §8`.
+
+El chequeo del server action se conserva, pero cumple otra función: produce el
+mensaje de error y habilita el flujo de dos pasos. La garantía la da el de
+adentro, porque es el único que sobrevive a una llamada directa a PostgREST
+con la anon key del bundle.
+
 ---
 
 ## 6. Lo que queda abierto

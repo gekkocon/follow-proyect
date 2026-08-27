@@ -230,6 +230,25 @@ El editor SQL de Supabase **no muestra `RAISE NOTICE` ni `RAISE WARNING`**: una 
 
 Y el editor **corre como superusuario y bypassea RLS**. Una migración que crea tablas no se cierra verificando desde ahí: la 013, la 013b y su smoke test pasaron las tres mientras la app, con la anon key, veía cero filas. Al crear una tabla que reemplaza a otra, la política se copia junto con el flag de RLS o la nueva nace muda.
 
+### Funciones SQL que dependen de la identidad del llamador
+
+Receta medida extremo a extremo el 27 ago 2026 con una sonda, en los cuatro
+cuadrantes. No razonar esto de memoria: la respuesta intuitiva es la
+equivocada.
+
+1. `SECURITY INVOKER`. RLS está deshabilitada en las tablas del work plan, así que la función no necesita elevación. `DEFINER` sería privilegio sin necesidad.
+2. **`REVOKE EXECUTE ... FROM anon` POR NOMBRE.** `REVOKE FROM PUBLIC` **no alcanza**: Supabase otorga EXECUTE a `anon` nominalmente vía `ALTER DEFAULT PRIVILEGES` sobre el esquema `public`, y un revoke a PUBLIC no toca un grant nominal. Medido: tras `REVOKE FROM PUBLIC`, el ACL seguía mostrando `anon=X/postgres` y el cliente anon ejecutaba la función sin error.
+3. `GRANT EXECUTE ... TO authenticated`.
+4. Chequeo de rol **dentro del cuerpo**, cruzando `request.jwt.claims ->> 'email'` contra `public.users`, con `lower()` en los dos lados. No es redundante con el chequeo del server action: la anon key lleva prefijo `NEXT_PUBLIC_` y vive en el bundle del navegador, así que cualquiera puede llamar a PostgREST directo sin pasar por Next. Ese camino no lo cubre ningún chequeo del action.
+5. Invocar con `createAuthServerClient()`, nunca con `createServerClient()`. Es el único de los tres que propaga el token de sesión a Postgres. Ojo con los nombres: `server.ts` renombra el `createServerClient` de `@supabase/ssr` —el que SÍ propaga sesión— a `createSupabaseServerClient`, para convivir con el propio del archivo, que NO la propaga. Dos nombres casi idénticos con semántica opuesta.
+6. Verificar `pg_proc.proacl` DESPUÉS de crearla. El grant se cree cuando se lee, no cuando se escribe.
+
+Los cuatro cuadrantes medidos: con `anon` todavía en el ACL, la función
+ejecuta y devuelve `es_admin: false` — el chequeo interno falla cerrado. Sin
+`anon` en el ACL, devuelve `42501 permission denied`. Con sesión, resuelve el
+rol correctamente. Son dos capas independientes y cada una se probó por
+separado.
+
 ### Una pantalla no verifica nada sin su renglón de compilación
 
 Next dev compila por demanda y escribe a disco. Una pestaña ya renderizada
@@ -271,6 +290,8 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
 23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
+24. Las RPC existentes se otorgan con `TO anon, authenticated` — `import_project_tasks` y los tres allocators. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
+25. `updateUserRole` cambia el rol de cualquier usuario sin verificar quién llama, y `createUser` usa la service role sin guarda de autorización. Son **precondición** de cualquier gate por rol: quien puede autopromoverse a `admin` después usa la cascada legítimamente.
 
 ---
 
