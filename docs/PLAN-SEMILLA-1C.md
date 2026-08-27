@@ -196,7 +196,7 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | 🟡 gate de UI aplicado el 26 ago (§6.0). Se cierra con D-19. |
 | **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
 | **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
-| **D-20** | **Eliminar fase: bloqueo por defecto, cascada solo admin y en dos pasos.** Por defecto el borrado se bloquea mientras la fase tenga tareas, con el conteo en el mensaje. Existe un camino de cascada reservado a rol `admin` y con confirmación en dos pasos, calcado del borrado masivo de proyecto (`CLAUDE.md §7`). | ⬜ paso 1C |
+| **D-20** | **Eliminar fase: bloqueo por defecto, cascada solo admin, atómica y autorizada en el servidor.** Una fase vacía se borra por el camino normal. Con tareas adentro, el borrado normal queda bloqueado, con el conteo en el mensaje. Existe un camino de cascada reservado a rol `admin`, con confirmación en dos pasos en la UI. La autorización se verifica **en el servidor**, contra la sesión, nunca contra un parámetro del cliente. La cascada corre en **una sola transacción** —`assignments` → subtareas → tareas → fase— y no se apoya en ningún `ON DELETE`. | ⬜ paso 1C |
 
 ### El fundamento de D-15, para no reabrirlo
 
@@ -243,17 +243,38 @@ repo: `deleteProjectTask` ya se niega a borrar una tarea con subtareas. Y la
 fase se vacía moviendo tareas a otra fase —la funcionalidad del punto 3 del 1C—,
 no soltándolas, que contradiría D-17 y D-19.
 
-Dos cosas que la implementación no puede saltear:
+**La atomicidad no es una preferencia de estilo: es forzada.** `supabase-js`
+habla PostgREST sobre HTTP y cada `.delete()` es una request, una transacción y
+un commit propio. Cuatro deletes secuenciales en un server action son cuatro
+transacciones; si el tercero falla, los dos primeros ya están commiteados y la
+fase queda a medio borrar. El cliente JS no expone `BEGIN`/`COMMIT`. La única
+forma de una transacción es una función plpgsql invocada con un solo `rpc()`.
 
-La cascada **no puede apoyarse en la FK**. Tiene que borrar tareas, subtareas y
-filas de `assignments` explícitamente en código, y con eso saltea deliberadamente
-la guarda de subtareas de `deleteProjectTask`. Ese salteo es lo que justifica
-exigir admin y dos pasos, no un detalle de implementación.
+**La cascada no puede apoyarse en la FK.** `tasks.phase_id` es `ON DELETE SET
+NULL`: la base no borra, suelta. La función borra `assignments`, subtareas,
+tareas y fase explícitamente, y con eso saltea deliberadamente la guarda de
+subtareas de `deleteProjectTask`. Ese salteo es lo que justifica exigir admin y
+dos pasos, no un detalle de implementación. Borrar explícitamente además hace
+reales los conteos que la operación devuelve.
 
-Es el **primer chequeo de rol sobre una acción destructiva de este repo**. Los
-tres actions de borrado usan `createServerClient()` con anon key y no saben quién
-pide el borrado. Implementar la cláusula admin obliga a leer la sesión dentro del
-action.
+**El botón no es la frontera: el action lo es.** Un server action de Next tiene
+su propio endpoint y es invocable con independencia de si la página que lo
+renderiza escondió el botón. Ocultar por rol en la UI es UX, no seguridad —
+misma confusión que ya registra la deuda 2. Y si la función SQL recibiera el rol
+o el id de usuario como parámetro, cualquiera pasaría `admin`. La identidad se
+deriva de la sesión, que el llamador no puede setear.
+
+**Es el primer chequeo de rol sobre una acción destructiva de este repo.** Los
+tres actions de borrado usan `createServerClient()` con anon key y no saben
+quién pide el borrado. Dónde vive exactamente el chequeo —dentro de la función
+SIGUIENDO `auth.uid()`, o en el action antes de invocarla— queda pendiente de
+leer la capa de sesión: el vínculo Auth ↔ `users` es por email y no por UUID
+(`CLAUDE.md §6`), y eso condiciona la resolución del rol.
+
+**Lo que sale gratis:** la cascada no quema ningún código. Los códigos de las
+tareas de una fase viven en `phases.task_code_seq`, que desaparece con la fila.
+No hay contador que elevar. Es lo contrario del camino `SET NULL`, cuyo problema
+era justamente el namespace del proyecto.
 
 ---
 
