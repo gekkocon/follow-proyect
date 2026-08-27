@@ -108,7 +108,7 @@ No hace falta volver a leerlo.
 
 ## 4. Correcciones de hecho, cerradas en C-1
 
-Doce mediciones que contradicen documentos previos. Ganan las mediciones.
+Seis mediciones que contradicen documentos previos. Ganan las mediciones.
 
 1. **Huérfanas: eran 10 al arrancar C-1** (2/5/3), no 7. El 7 del
    `PLAN-SEMILLA-C1.md` era prosa, nunca conteo. Hoy son 8 (2/5/1).
