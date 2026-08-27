@@ -200,12 +200,19 @@ Campos comunes a los tres tipos:
 | created_at | timestamptz | |
 | resolved_at | timestamptz | |
 | sort_order | int | |
+| generated_task_id | bigint FK tasks | la tarea que resuelve este item. Aplica a los tres tipos — ver D-18. |
+| checklist | jsonb default '[]' | pasos menores, mismo formato que subtasks |
+
+**`work_item_origins` y `generated_task_id` apuntan en direcciones
+opuestas y no se unifican.** El origen dice dónde apareció el item; la
+tarea generada, dónde se resuelve. Un bug detectado en `F0-T07` puede
+arreglarse con una tarea en F3.
 
 Específicos de **bug**: `severity` (gravedad técnica, distinta de `priority`), `environment`, `version`, `reproduction_steps`, `expected_behavior`, `actual_behavior`, `resolution`.
 
 Específicos de **debt**: `impact` (enum), `proposed_solution`, `estimated_effort`, `target_phase_id`.
 
-Específicos de **rfc**: `options`, `recommendation`, `final_decision`, `generated_task_id`.
+Específicos de **rfc**: `options`, `recommendation`, `final_decision`.
 
 **Eliminados:** `detected_by` y `detected_at` (son `created_by` y `created_at`), `reproducible` (se deduce de si hay pasos), `reason` y `context` (los cubre `description`), `risk_if_not_resolved` (se superpone con `impact`), `generated_decision_id` (el ADR vive fuera, no hay tabla que referenciar — si hace falta, un campo de texto con la ruta).
 

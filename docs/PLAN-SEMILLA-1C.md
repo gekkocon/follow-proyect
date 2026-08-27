@@ -44,7 +44,7 @@ Migraciones **013**, **013b** y **013c** aplicadas y verificadas.
 ```
 proyectos    2
 phases       5   (todas del proyecto 7)
-tasks       37   (35 del proyecto 7 + 2 del proyecto 5)
+tasks       38   (36 del proyecto 7 + 2 del proyecto 5)
 subtasks   106
 ```
 
@@ -57,12 +57,19 @@ números sin explicación es un bug.**
 |---|---|---|---|
 | Fase 0 | F0 | 8 | 21.3 % |
 | Fase 1 | F1 | 5 | 0.0 % |
-| Fase 2 | F2 | 4 | 0.0 % |
+| Fase 2 | F2 | 5 | 0.0 % |
 | Fase 3 | F3 | 4 | 0.0 % |
 | SEO Técnico | F4 | 9 | 77.8 % |
 | Sin fase | — | 5 | 100.0 % |
-| **Proyecto 7** | | **35** | **19.8 %** |
+| **Proyecto 7** | | **36** | **19.8 %** |
 | **Proyecto 5** | sin fases | **2** | **100 %** |
+
+**Los números de F2 y del proyecto 7 subieron en uno respecto de la medición
+original (4 y 35).** El paso 1B+ creó la tarea `F2-T05` "Desarrollo motriz",
+que es la primera tarea nacida dentro de una fase desde la UI: es la prueba de
+que el flujo funciona, no una discrepancia. Los **avances no se movieron** —F2
+sigue en 0.0 % y el proyecto 7 en 19.8 %— porque la tarea nueva está en "Por
+hacer" y `taskProgress` la cuenta como 0.
 
 ### Postura de RLS — es MIXTA, y es el estándar real
 
@@ -120,6 +127,11 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
     `CREATE POLICY`. Reparado por la 013c.
 11. **`ProgressBar` es `{ done, total, className?, showLabel? }`**, y
     `showLabel` viene en `true` por defecto.
+12. **La respuesta A2 del cuestionario tiene dos mitades, y C-3 leyó una.**
+    Literal: *"No todas tienen que estar ligadas a alguna fase, para eso
+    también tenemos los otros tres elementos: Bugs, Technical Debt,
+    Questions / RFC"*. La sección C-3 cita la primera cláusula y no menciona
+    los tres elementos ni una vez. Ver D-17.
 
 ---
 
@@ -131,6 +143,9 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-14** | La 014 es destructiva **y correctiva a la vez**: en la misma transacción dropea las columnas y republica `import_project_tasks` sin referencias a ellas. El barrido real es de **25+ puntos en 7 archivos**, no los 3 que listaba `PLAN-SEMILLA-1B §5.6`. Ver §6.3. | ⬜ |
 | **D-15** | **Avance, regla C.** Las tareas sin fase **no entran** en el número del proyecto cuando el proyecto tiene fases; el bloque "Sin fase" muestra el suyo aparte. Un proyecto sin fases promedia sus tareas planas. Fase sin tareas → "—", nunca 0 %. Amienda `ARQUITECTURA §5`. La regla entera vive en `projectProgress()`. | ✅ |
 | **D-16** | "Actualizar tareas" queda **como está** en el 1B y se resuelve en el 1C. Su direccionamiento por guion (`F3-T08`) murió con los códigos locales; hoy el botón solo puede terminar en error. Ver §6.2. | ⬜ |
+| **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | ⬜ pendiente — decidido, sin implementar |
+| **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
+| **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
 
 ### El fundamento de D-15, para no reabrirlo
 
@@ -143,11 +158,54 @@ que C-4: dos lecturas separadas, nunca fundidas en un porcentaje.
 Amplitud medida entre las cuatro reglas candidatas: **40 puntos** sobre los
 mismos datos. No era afinar decimales.
 
+### El fundamento de D-17 y D-19, para no reabrirlos
+
+El "para eso" de la respuesta A2 señala un destino: el trabajo suelto existe, y
+su casa son los tres bloques emergentes, no una tarea huérfana.
+
+Lo que **no** cambia: `phase_id` sigue nullable; D-15 queda reforzada;
+`PLAN-SEMILLA-ETAPA1 §5` (F30–F34 como Handoff parqueado) queda reforzada;
+D-7 pasa a ser explícitamente un puente, y `import_work_plan` importará a fase
+en la Etapa 3.
+
+**D-19 no revive la opción B de C-3.** Aquella era una fase-basurero "Sin
+clasificar" conviviendo con fases reales. Esto es que la primera fase real la
+crea el usuario, con nombre. Se parecen y no son lo mismo.
+
+### El fundamento de D-18
+
+`Bugs - task` se lee igual de bien como "el bug genera una tarea" que como "el
+bug contiene tareas". La segunda lectura es una jerarquía paralela: allocator
+nuevo, UI nueva, y rompe el máximo de tres niveles persistentes porque habría
+dos árboles. La primera cuesta un campo y una acción.
+
 ---
 
 ## 6. Lo que queda abierto
 
-### 6.1 Paso 1B+ — crear tareas dentro de una fase · **hacer esto primero**
+### 6.0 Gate del botón de huérfanas — hacer esto primero
+
+**D-17 está decidida y no implementada.** Verificado en el código: el botón
+"Nueva tarea sin fase" del pie de la lista **no está gateado por la cantidad de
+fases**. `hasPhases = workPlan.phases.length > 0` (`ProjectTasksClient.tsx:421`)
+solo elige la *etiqueta* —`newTaskLabel`, línea 427— y el botón se renderiza
+siempre. O sea que el proyecto 7, con sus 5 fases, sigue ofreciendo fabricar
+huérfanas.
+
+Alcance: el botón se renderiza **solo cuando el proyecto tiene cero fases**.
+Con fases, el único camino de alta es el pie de cada `WorkSection`.
+
+Cuidado con el proyecto 5: **depende de ese camino**. No tiene fases y sus dos
+tareas se crean por ahí, así que el gate tiene que dejarlo pasar. El caso
+"cero fases" se resuelve del todo recién en D-19, cuando pase a mostrar "Crear
+primera fase".
+
+### ~~6.1 Paso 1B+ — crear tareas dentro de una fase~~ · CERRADO
+
+**Cerrado el 26 ago.** `createProjectTask` acepta `phaseId` y llama a
+`alloc_task_code_in_phase`; `WorkSection` tiene su pie "Nueva tarea en esta
+fase"; una fase vacía ahora abre y muestra solo el pie. Verificado en
+pantalla: F2-T05 "Desarrollo motriz", código correcto a la primera.
 
 Hoy toda tarea creada desde la UI nace **sin fase**, porque
 `createProjectTask` llama a `alloc_task_code` —el allocator de huérfanas— y no
@@ -246,6 +304,12 @@ insert omite la clave: una fila puede nacer **sin código** en silencio. Con
 cuatro contadores la probabilidad sube. `composeCode` ya lo tolera —devuelve
 `null` y la UI oculta el badge— pero la fila queda sin identidad.
 
+### 6.6 El botón Importar sigue sin probarse end-to-end
+
+Viene de `PLAN-SEMILLA-1B §5.2` y no se cerró: desapareció al cambiar de
+documento. La 013b pasó su smoke test dentro de Postgres, pero nadie apretó
+el botón en la app. Es barato y cierra la 013b de verdad.
+
 ---
 
 ## 7. Lecciones de proceso de esta sesión
@@ -269,10 +333,20 @@ cuatro contadores la probabilidad sube. `composeCode` ya lo tolera —devuelve
 5. **Un número de aceptación mal derivado cuesta una sesión.** Se fijó "37
    tareas" para el proyecto 7 cuando 37 era el total de los dos proyectos. El
    valor correcto era 35. La verificación en pantalla frenó por un fantasma.
+6. **Una pestaña abierta sobrevive a la muerte de su servidor.** El bundle ya
+   cargado responde y se ve idéntico a uno vivo, así que se diagnostica código
+   que nunca corrió. El gate es el renglón `✓ Compiled /ruta`, no la pantalla.
+7. **"No hay nada que corregir" es un resultado válido.** Ante un síntoma en
+   pantalla y un fuente sano, la salida correcta es reportar la discrepancia,
+   no fabricar un arreglo.
 
 ---
 
 ## 8. Parche consolidado a `CLAUDE.md`
+
+> **⚠️ APLICADO — no volver a ejecutar.** Los ocho reemplazos se aplicaron
+> el 26 ago 2026. `CLAUDE.md` ya está en estado post-1B. Esta sección queda
+> como registro de qué cambió, no como instrucción pendiente.
 
 `CLAUDE.md` está en el estado de la Fase 8B. Estos reemplazos lo llevan directo
 al estado post-1B. **No aplicar antes el parche del semilla 1B: este lo incluye.**
@@ -390,27 +464,35 @@ Y el editor **corre como superusuario y bypassea RLS**. Una migración que crea 
 ## 9. Primer paso del chat nuevo
 
 ```txt
-Proyecto follow-proyect — Etapa 1, paso 1B+ y después 1C.
+Proyecto follow-proyect — Etapa 1, paso 1C del Work Plan.
 
-Adjunto PLAN-SEMILLA-1C.md, que es el estado real: migraciones 013, 013b
-y 013c aplicadas, paso 1B verificado en pantalla y pusheado.
+Adjunto PLAN-SEMILLA-1C.md, que es el estado real: migraciones 013, 013b y
+013c aplicadas; pasos 1B y 1B+ verificados en pantalla y pusheados;
+CLAUDE.md ya patcheado al estado post-1B — la §8 de este documento está
+GASTADA, no volver a aplicarla.
 
-Leelo antes de nada. Lo que está cerrado ahí no se rediscute: D-1 a D-16,
-las once correcciones de hecho, y el criterio de aceptación de la §2.
+Leelo antes de nada. Lo que está cerrado ahí no se rediscute: D-1 a D-19,
+las doce correcciones de hecho, y el criterio de aceptación de la §2.
 
 Objetivo de la sesión, en este orden:
-  1. Paso 1B+ — crear tareas dentro de una fase (§6.1). Sin SQL.
-  2. Aplicar el parche consolidado a CLAUDE.md (§8) y guardar este
-     semilla en docs/.
-  3. Diseñar el 1C (§6.2).
+  1. Lo que quede abierto de la §6.0 y la §6.6, si las hay.
+  2. Paso 1C (§6.2): ABM de fases — crear, editar, borrar, reordenar.
+  3. Mover tarea entre fases, con el código realocado del watermark
+     destino (C-1).
+  4. Cerrar D-19: "Nueva tarea sin fase" desaparece de todos lados; un
+     proyecto con cero fases muestra "Crear primera fase".
+  5. phase.status y phase.priority en pantalla.
+  6. "Actualizar tareas" deshabilitado con leyenda (D-16).
 
-Contexto operativo, importante:
-  - Claude Code viene bloqueando Bash, Write y Edit por un clasificador
-    que reacciona al contenido de la conversación. Mantené los prompts
-    como trabajo de desarrollo normal: nada de descargas con hash, nada
-    de SQL de permisos, nada de git. El SQL va a mi editor de Supabase
-    y el git a mi terminal.
-  - Los archivos del repo los modifica Claude Code. Yo valido SQL.
+Contexto operativo:
+  - Claude Code puede bloquear Bash, Write y Edit por un clasificador que
+    reacciona al contenido de la conversación. Mantener los prompts como
+    trabajo de desarrollo normal: nada de descargas con hash, nada de SQL
+    de permisos, nada de git.
+  - Verificación en pantalla: hard reload y el renglón `✓ Compiled /ruta`
+    en la terminal antes de creerle a lo que se ve. Una pestaña abierta
+    sobrevive a la muerte de su servidor.
+  - El SQL va a mi editor de Supabase. El git, a mi terminal.
 
 Convención: todo bloque de código va precedido por su línea de destino.
   ▶ DESTINO: CLAUDE CODE 🤖 (terminal del repo)

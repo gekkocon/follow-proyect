@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **8B**.
+Última fase cerrada: **Etapa 1, paso 1B** (migraciones 013, 013b y 013c aplicadas).
 
 ---
 
@@ -99,14 +99,24 @@ Es asimétrico (`/app` y `/components` fuera de `/src`) pero **es el estándar d
 
 ## 6. Modelo de datos actual
 
-**8 tablas**, todas con `id BIGSERIAL`: `users`, `brand_settings`, `projects`, `tasks`, `subtasks`, `task_assignees`, `subtask_assignees`, `project_members`.
+**10 tablas:** `users`, `brand_settings`, `projects`, `phases`, `tasks`, `subtasks`, `assignments`, `task_assignees`, `subtask_assignees`, `project_members`.
+
+`task_assignees` y `subtask_assignees` están **supersedidas** por `assignments` y se borran en la 014.
+
+Los ids **no son todos bigserial**: `projects.id`, `tasks.id` y `subtasks.id` son `integer`; `phases`, `assignments` y las tablas de asignados son `bigint`. El mix es preexistente.
 
 Campos reales — **en inglés**, no en español:
 
-- `projects`: name, description, status, priority, owner_id, start_date, due_date
-- `tasks`: title, description, status, priority, project_id, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies
-- `subtasks`: igual + task_id + completed; sin is_blocked ni blocked_reason
+- `projects`: name, description, status, priority, owner_id, start_date, due_date, phase_code_seq, orphan_task_code_seq
+- `phases`: project_id, code, name, objective, status, priority, start_date, due_date, completed_at, sort_order, task_code_seq
+- `tasks`: title, description, status, priority, project_id, **phase_id (nullable)**, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
+- `subtasks`: igual + task_id + completed + legacy_code + completed_at; sin is_blocked ni blocked_reason
+- `assignments`: assignable_type (`task | subtask | work_item`), assignable_id, user_id — UNIQUE sobre los tres
 - `project_members`: project_id, user_id, rol_en_proyecto *(TEXT libre, no enum)*
+
+`start_date`, `estimated_cost`, `dependencies` y `subtasks.completed` se eliminan en la 014.
+
+**`task_status` real:** `todo · in_progress · in_review · done · blocked`. No existe `cancelled` ni `pending`.
 
 **5 enums Postgres:** `user_role`, `user_status`, `project_status`, `priority_level`, `task_status`.
 
@@ -122,20 +132,31 @@ Equivalencia con la nomenclatura vieja: admin ≈ Admin, pm ≈ Coordinador, dev
 
 **Vínculo Auth ↔ tabla users: por EMAIL, no por UUID.** Si cambia el email en un lado y no en el otro, el usuario queda sin perfil.
 
-### Códigos humanos legibles (Fase 8A)
+### Códigos humanos legibles (Etapa 1)
 
-- `tasks.code` (sin padding: F0, F1…) y `subtasks.code`.
-- Índices únicos parciales `(project_id, code)` y `(task_id, code)`.
-- Allocators atómicos `alloc_task_code` / `alloc_subtask_code`.
-- Contadores watermark `projects.task_code_seq` / `tasks.subtask_code_seq`. **Nunca decrecen**: los códigos borrados quedan quemados.
-- La ausencia de padding en `task.code` es **deliberada**. Agregarlo rompe el uso existente.
+El código guardado es **local**. El compuesto (`F0-T03-S02`) se arma al mostrar, con `composeCode()` de `src/lib/work-plan.ts`.
+
+| Nivel | Formato | Único dentro de | Contador | Contrato |
+|---|---|---|---|---|
+| Fase | `F0`, `F1` sin padding | proyecto | `projects.phase_code_seq` | PRE |
+| Tarea en fase | `T01` padding 2 | fase | `phases.task_code_seq` | POST |
+| Tarea sin fase | `T01` padding 2 | proyecto | `projects.orphan_task_code_seq` | POST |
+| Subtarea | `S01` padding 2 | tarea | `tasks.subtask_code_seq` | POST |
+
+**Los contratos PRE y POST son distintos a propósito. No unificarlos.**
+
+Allocators: `alloc_phase_code`, `alloc_task_code` (sin fase), `alloc_task_code_in_phase`, `alloc_subtask_code`. Padding con ancho dinámico `GREATEST(2, length(...))`: un `lpad` fijo trunca y colisiona.
+
+Watermarks monotónicos: nunca decrecen, los códigos borrados quedan quemados.
+
+`legacy_code` guarda el código 8A previo (`F19`, `F19-T01`). Es anotación histórica: **nunca se muestra como código vivo.**
 
 ### Funciones SQL de carga masiva
 
-| Función | Migración | Qué hace |
+| Función | Migración | Estado |
 |---|---|---|
-| `import_project_tasks` | 010 | Importa JSON anidado, crea filas nuevas. **Ancla de estabilidad: no modificar.** |
-| `update_project_tasks` | 011 | Patch masivo por código humano, JSON plano. |
+| `import_project_tasks` | 010 → reparada en 013b | Ancla. Crea tareas **sin fase**. Valida códigos del payload. |
+| `update_project_tasks` | 011 → congelada en 013b | Lanza excepción. Direccionaba por `F3-T08`, que ya no existe. Vuelve como `update_work_plan` en la Etapa 3. |
 
 ---
 
@@ -200,13 +221,31 @@ Comparten el directorio `.next`. El build de producción pisa los artefactos de 
 El síntoma engaña: se ve como un fallo del código recién escrito cuando no lo es.
 Salida: frenar el dev server, `rm -rf .next`, levantar de nuevo.
 
+### Las verificaciones tienen que devolver filas, y con la llave correcta
+
+El editor SQL de Supabase **no muestra `RAISE NOTICE` ni `RAISE WARNING`**: una migración que verifica con NOTICE devuelve "Success. No rows returned" tanto si pasó como si no verificó nada. Toda verificación que tenga que leer un humano va en un `SELECT` aparte.
+
+Y el editor **corre como superusuario y bypassea RLS**. Una migración que crea tablas no se cierra verificando desde ahí: la 013, la 013b y su smoke test pasaron las tres mientras la app, con la anon key, veía cero filas. Al crear una tabla que reemplaza a otra, la política se copia junto con el flag de RLS o la nueva nace muda.
+
+### Una pantalla no verifica nada sin su renglón de compilación
+
+Next dev compila por demanda y escribe a disco. Una pestaña ya renderizada
+sobrevive a la muerte de su servidor: scrollea, abre y cierra secciones y
+muestra el árbol entero — todo eso es cliente. Se ve idéntica a una viva.
+
+Toda verificación en pantalla arranca con un hard reload y el renglón
+`✓ Compiled /ruta` en la terminal. Sin ese renglón, lo que se está mirando
+es un bundle viejo. Si `.next/server/app/` está vacío, ese servidor no
+atendió un solo request desde que arrancó; si el log muestra
+`GET /login?redirect=...`, el middleware rebotó la ruta y tampoco la compiló.
+
 ---
 
 ## 9. Deuda técnica conocida
 
 Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
-1. RLS habilitada pero con políticas `allow_all` permisivas. Toda la seguridad real es de aplicación.
+1. La postura de RLS es **mixta**: `users`, `projects`, `tasks`, `subtasks`, `phases` y `assignments` la tienen **deshabilitada**; `brand_settings`, `project_members` y las dos tablas de asignados la tienen habilitada con una política `allow_all`. Toda la seguridad real es de aplicación.
 2. `/users` y `/settings` se protegen solo contra "no logueado", **no por rol**. La ocultación por rol es visual.
 3. `deleteUser` deja la cuenta de Supabase Auth huérfana.
 4. Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.
@@ -218,7 +257,9 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 10. Sin upload de archivos: logo y favicon solo por URL externa.
 11. `brand_settings` tiene `secondary_color`, `accent_color` y `font_family` en la tabla; la UI no los expone.
 12. `TaskStatusSelect` y `UserRoleSelect` usan `createPortal` a `document.body` con posición fija porque los dropdowns quedaban recortados por el overflow de la tabla. Es intencional.
-13. `TaskWithSubtasks` en `types.ts` es un tipo legacy sin ningún consumidor: nadie lo importa. Se elimina en la migración del Work Plan.
+13. ~~`TaskWithSubtasks`~~ — **eliminado** en el paso 1A.
+14. `allocCode` en `project-task-actions.ts` devuelve `null` si el RPC falla y el insert omite la clave: una fila puede nacer sin código en silencio.
+15. El dashboard mide `tareas done / totales` y el detalle de proyecto mide avance del plan. Para el proyecto 7 son 34 % y 19.8 %. Métricas distintas, etiquetas parecidas.
 
 ---
 
@@ -226,6 +267,6 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
 Una línea cada una. El fundamento completo de las dos últimas está en `docs/CHANGELOG.md`, en la entrada de la Fase 8B.
 
-1. **Arquitectura del Work Plan.** El modelo está definido en `docs/ARQUITECTURA-WORKPLAN.md`, con los cinco conflictos estructurales cerrados. Pendiente: la revisión campo por campo de las tablas.
+1. ~~Arquitectura del Work Plan~~ — **cerrada.** Modelo en `docs/ARQUITECTURA-WORKPLAN.md`; decisiones D-1 a D-16 en `docs/PLAN-SEMILLA-1B.md` y `docs/PLAN-SEMILLA-1C.md`. Tablas separadas para la jerarquía, `assignments` polimórfica, `work_items` única para lo emergente en la Etapa 2.
 2. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
 3. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
