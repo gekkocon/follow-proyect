@@ -383,6 +383,13 @@ explicación es un bug.
    adjunto desde la carpeta del repo, en el primer mensaje. Los archivos del
    proyecto quedan vacíos a propósito.
    Cerrar sesión son dos movimientos, no tres: commit y push.
+9. **El `git status` del agente es un reporte, no el estado.** En esta sesión
+   Claude Code informó cinco veces un árbol que ya no existía: seguía viendo
+   `M docs/PLAN-SEMILLA-1C.md` después de que el commit y el push ocurrieran en
+   otra terminal. No miente — mira el snapshot de cuando arrancó su turno, y el
+   git vive fuera de su sesión. Antes de commitear, el `git status` que vale es
+   el de la terminal propia. Sus números sí sirven: las líneas cambiadas
+   reconciliaron con git a la primera.
 
 ---
 
@@ -511,15 +518,16 @@ Y el editor **corre como superusuario y bypassea RLS**. Una migración que crea 
 Proyecto follow-proyect — Etapa 1, paso 1C del Work Plan.
 
 Adjunto PLAN-SEMILLA-1C.md, que es el estado real: migraciones 013, 013b y
-013c aplicadas; pasos 1B y 1B+ verificados en pantalla y pusheados;
-CLAUDE.md ya patcheado al estado post-1B — la §8 de este documento está
-GASTADA, no volver a aplicarla.
+013c aplicadas; pasos 1B y 1B+ y el gate de la §6.0 verificados en pantalla
+y pusheados, HEAD en 60fc7b4; CLAUDE.md ya patcheado al estado post-1B — la
+§8 de este documento está GASTADA, no volver a aplicarla.
 
 Leelo antes de nada. Lo que está cerrado ahí no se rediscute: D-1 a D-19,
 las doce correcciones de hecho, y el criterio de aceptación de la §2.
 
 Objetivo de la sesión, en este orden:
-  1. Lo que quede abierto de la §6.0 y la §6.6, si las hay.
+  1. §6.6 — probar el botón Importar end-to-end. Barato, y cierra la
+     013b de verdad. La §6.0 ya está cerrada.
   2. Paso 1C (§6.2): ABM de fases — crear, editar, borrar, reordenar.
   3. Mover tarea entre fases, con el código realocado del watermark
      destino (C-1).
