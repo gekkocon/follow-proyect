@@ -44,7 +44,7 @@ Migraciones **013**, **013b** y **013c** aplicadas y verificadas.
 ```
 proyectos    2
 phases       5   (todas del proyecto 7)
-tasks       38   (36 del proyecto 7 + 2 del proyecto 5)
+tasks       37   (35 del proyecto 7 + 2 del proyecto 5)
 subtasks   106
 ```
 
@@ -57,19 +57,21 @@ números sin explicación es un bug.**
 |---|---|---|---|
 | Fase 0 | F0 | 8 | 21.3 % |
 | Fase 1 | F1 | 5 | 0.0 % |
-| Fase 2 | F2 | 5 | 0.0 % |
+| Fase 2 | F2 | 4 | 0.0 % |
 | Fase 3 | F3 | 4 | 0.0 % |
 | SEO Técnico | F4 | 9 | 77.8 % |
 | Sin fase | — | 5 | 100.0 % |
-| **Proyecto 7** | | **36** | **19.8 %** |
+| **Proyecto 7** | | **35** | **19.8 %** |
 | **Proyecto 5** | sin fases | **2** | **100 %** |
 
-**Los números de F2 y del proyecto 7 subieron en uno respecto de la medición
-original (4 y 35).** El paso 1B+ creó la tarea `F2-T05` "Desarrollo motriz",
-que es la primera tarea nacida dentro de una fase desde la UI: es la prueba de
-que el flujo funciona, no una discrepancia. Los **avances no se movieron** —F2
-sigue en 0.0 % y el proyecto 7 en 19.8 %— porque la tarea nueva está en "Por
-hacer" y `taskProgress` la cuenta como 0.
+**El paso 1B+ dejó un código quemado, no una tarea.** La prueba de aceptación
+creó `F2-T05` "Desarrollo motriz" —primera tarea nacida dentro de una fase
+desde la UI, con el código correcto a la primera— y después se borró. Los
+conteos volvieron a 35, pero `phases.task_code_seq` de F2 quedó en 5: es un
+watermark monotónico y nunca decrece (D-11).
+
+**Consecuencia para quien verifique el 1C:** la próxima tarea de F2 nace
+`T06`, no `T05`. Es el diseño, no una falla del allocator.
 
 ### Postura de RLS — es MIXTA, y es el estándar real
 
