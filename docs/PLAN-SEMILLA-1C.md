@@ -73,6 +73,14 @@ watermark monotónico y nunca decrece (D-11).
 **Consecuencia para quien verifique el 1C:** la próxima tarea de F2 nace
 `T06`, no `T05`. Es el diseño, no una falla del allocator.
 
+**Los contadores de huérfanas también tienen códigos quemados.** El proyecto 7
+tiene `orphan_task_code_seq` en 6 con cinco huérfanas vivas (`T01`–`T05`, todas
+con `legacy_code` F30–F34, el Handoff parqueado): `T06` se asignó y su fila no
+sobrevivió. O una tarea creada desde la UI durante el 1B y borrada, o la deuda
+#14 —el RPC asigna y el insert falla después—. No hay colisión posible: el
+contador va por encima del MAX real y es monotónico. El proyecto 5 quedó en 3
+tras la prueba de aceptación del punto 1, que creó y borró `T03`.
+
 ### Postura de RLS — es MIXTA, y es el estándar real
 
 | RLS | Políticas | Tablas |
@@ -145,7 +153,7 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-14** | La 014 es destructiva **y correctiva a la vez**: en la misma transacción dropea las columnas y republica `import_project_tasks` sin referencias a ellas. El barrido real es de **25+ puntos en 7 archivos**, no los 3 que listaba `PLAN-SEMILLA-1B §5.6`. Ver §6.3. | ⬜ |
 | **D-15** | **Avance, regla C.** Las tareas sin fase **no entran** en el número del proyecto cuando el proyecto tiene fases; el bloque "Sin fase" muestra el suyo aparte. Un proyecto sin fases promedia sus tareas planas. Fase sin tareas → "—", nunca 0 %. Amienda `ARQUITECTURA §5`. La regla entera vive en `projectProgress()`. | ✅ |
 | **D-16** | "Actualizar tareas" queda **como está** en el 1B y se resuelve en el 1C. Su direccionamiento por guion (`F3-T08`) murió con los códigos locales; hoy el botón solo puede terminar en error. Ver §6.2. | ⬜ |
-| **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | ⬜ pendiente — decidido, sin implementar |
+| **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | 🟡 gate de UI aplicado el 26 ago (§6.0). Se cierra con D-19. |
 | **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
 | **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
 
@@ -185,22 +193,32 @@ dos árboles. La primera cuesta un campo y una acción.
 
 ## 6. Lo que queda abierto
 
-### 6.0 Gate del botón de huérfanas — hacer esto primero
+### ~~6.0 Gate del botón de huérfanas~~ · CERRADO
 
-**D-17 está decidida y no implementada.** Verificado en el código: el botón
-"Nueva tarea sin fase" del pie de la lista **no está gateado por la cantidad de
-fases**. `hasPhases = workPlan.phases.length > 0` (`ProjectTasksClient.tsx:421`)
-solo elige la *etiqueta* —`newTaskLabel`, línea 427— y el botón se renderiza
-siempre. O sea que el proyecto 7, con sus 5 fases, sigue ofreciendo fabricar
-huérfanas.
+**Cerrado el 26 ago.** El botón del pie de la lista se renderiza solo cuando el
+proyecto tiene cero fases. Con fases, el único camino de alta es el pie de cada
+`WorkSection`. La etiqueta quedó fija en "Nueva tarea" y `newTaskLabel` se borró.
 
-Alcance: el botón se renderiza **solo cuando el proyecto tiene cero fases**.
-Con fases, el único camino de alta es el pie de cada `WorkSection`.
+**Fueron dos cambios, no uno.** El gate solo, tal como lo describía esta sección,
+dejaba un botón muerto: el empty state del proyecto
+(`workPlan.allTasks.length === 0 && !showNewTask`) esconde las fases y ofrece
+"Crear la primera", que pone `showNewTask` en true, hace desaparecer el empty
+state y cae a un pie que el gate ya no renderiza. Pantalla sin formulario y sin
+salida salvo recargar.
 
-Cuidado con el proyecto 5: **depende de ese camino**. No tiene fases y sus dos
-tareas se crean por ahí, así que el gate tiene que dejarlo pasar. El caso
-"cero fases" se resuelve del todo recién en D-19, cuando pase a mostrar "Crear
-primera fase".
+La corrección no fue una guarda extra sino la condición: el empty state ahora
+exige además `!hasPhases`. Un proyecto con fases y cero tareas ya no dice "No hay
+tareas para este proyecto" — muestra sus fases vacías, cada una con su pie. Así
+los dos únicos setters de `showNewTask` quedan dentro de bloques que exigen
+`!hasPhases`, y la variable no puede volverse true sin un `NewTaskRow` que la
+renderice.
+
+Esa condición —cero fases y cero tareas— es el disparador que D-19 necesita para
+poner "Crear primera fase". El punto 5 reemplaza el contenido de ese bloque, no
+su condición.
+
+**D-17 no queda cerrada acá.** El proyecto 5 sigue creando huérfanas por ese pie,
+que es lo correcto hasta que exista el ABM. Se cierra con D-19.
 
 ### ~~6.1 Paso 1B+ — crear tareas dentro de una fase~~ · CERRADO
 
@@ -249,6 +267,13 @@ Entra también:
 - **"Actualizar tareas" (D-16).** Mínimo: deshabilitar el botón con la leyenda
   "Disponible de nuevo en la Etapa 3". El placeholder del panel todavía enseña
   `F3` y `F3-T08`, un formato que ya no existe.
+
+**Cuidado con `showNewTask` al crear una fase.** El estado del pie de alta de la
+lista sobrevive a un cambio de `hasPhases`. Hoy es inalcanzable porque no hay
+forma de crear una fase desde la UI, pero con el ABM: proyecto sin fases, el
+usuario abre "Nueva tarea" y escribe, crea una fase, `hasPhases` pasa a true y el
+formulario desaparece con lo escrito adentro. Crear una fase tiene que apagar ese
+estado.
 
 ### 6.3 Migración 014 — destructiva y correctiva
 
@@ -311,6 +336,13 @@ cuatro contadores la probabilidad sube. `composeCode` ya lo tolera —devuelve
 Viene de `PLAN-SEMILLA-1B §5.2` y no se cerró: desapareció al cambiar de
 documento. La 013b pasó su smoke test dentro de Postgres, pero nadie apretó
 el botón en la app. Es barato y cierra la 013b de verdad.
+
+**Verificar antes de apretar:** si `import_project_tasks` avanza
+`projects.orphan_task_code_seq` o solo valida los códigos del payload. Si no lo
+avanza, importar mete códigos que el contador no conoce y la próxima huérfana
+colisiona en silencio — el modo de falla del seeding de contadores. Y declarar el
+delta de conteos antes de importar: §2 dice que un número que cambia sin
+explicación es un bug.
 
 ---
 

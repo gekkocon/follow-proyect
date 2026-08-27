@@ -421,10 +421,11 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
   const hasPhases = workPlan.phases.length > 0;
   const orphanProgress = phaseProgress(workPlan.orphanTasks);
 
-  // El botón dice a dónde va a parar la tarea. `createProjectTask` llama a
-  // `alloc_task_code`, el allocator huérfano, y no recibe phaseId: toda tarea
-  // creada desde acá nace sin fase. Crear dentro de una fase es el paso 1C.
-  const newTaskLabel = hasPhases ? 'Nueva tarea sin fase' : 'Nueva tarea';
+  // D-17 — this list-level create footer only exists in projects with NO phases.
+  // Once a project has phases every task is born inside one, so the only way in
+  // is the footer of each WorkSection, which passes its phaseId to
+  // `alloc_task_code_in_phase`. Creating an orphan from here would put the task
+  // somewhere the user is not looking at.
 
   return (
     <div>
@@ -465,7 +466,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
       </div>
 
       {/* Work plan */}
-      {workPlan.allTasks.length === 0 && !showNewTask ? (
+      {workPlan.allTasks.length === 0 && !hasPhases && !showNewTask ? (
         <div className="rounded-xl border border-dashed border-border bg-white p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No hay tareas para este proyecto.{' '}
@@ -532,25 +533,26 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
             />
           )}
 
-          {showNewTask ? (
-            <NewTaskRow
-              projectId={projectId}
-              users={users}
-              onSaved={() => {
-                setShowNewTask(false);
-                refresh();
-              }}
-              onCancel={() => setShowNewTask(false)}
-            />
-          ) : (
-            <button
-              onClick={() => setShowNewTask(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
-            >
-              <Plus size={14} />
-              {newTaskLabel}
-            </button>
-          )}
+          {!hasPhases &&
+            (showNewTask ? (
+              <NewTaskRow
+                projectId={projectId}
+                users={users}
+                onSaved={() => {
+                  setShowNewTask(false);
+                  refresh();
+                }}
+                onCancel={() => setShowNewTask(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowNewTask(true)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
+              >
+                <Plus size={14} />
+                Nueva tarea
+              </button>
+            ))}
         </div>
       )}
 
