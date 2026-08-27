@@ -42,10 +42,10 @@ Sin SQL pendiente de correr. Ninguna migración a medias.
 Migraciones **013**, **013b** y **013c** aplicadas y verificadas.
 
 ```
-proyectos    2
+proyectos    3
 phases       5   (todas del proyecto 7)
-tasks       37   (35 del proyecto 7 + 2 del proyecto 5)
-subtasks   106
+tasks       40   (35 del proyecto 7 + 2 del proyecto 5 + 3 del sandbox)
+subtasks   108
 ```
 
 ### Criterio de aceptación permanente
@@ -56,30 +56,70 @@ números sin explicación es un bug.**
 | Fase | code | tareas | avance |
 |---|---|---|---|
 | Fase 0 | F0 | 8 | 21.3 % |
-| Fase 1 | F1 | 5 | 0.0 % |
-| Fase 2 | F2 | 4 | 0.0 % |
+| Fase 1 | F1 | 4 | 0.0 % |
+| Fase 2 | F2 | 5 | 0.0 % |
 | Fase 3 | F3 | 4 | 0.0 % |
 | SEO Técnico | F4 | 9 | 77.8 % |
 | Sin fase | — | 5 | 100.0 % |
 | **Proyecto 7** | | **35** | **19.8 %** |
 | **Proyecto 5** | sin fases | **2** | **100 %** |
+| **Proyecto 9 — sandbox** | sin fases | **3** | **0.0 %** |
 
-**El paso 1B+ dejó un código quemado, no una tarea.** La prueba de aceptación
-creó `F2-T05` "Desarrollo motriz" —primera tarea nacida dentro de una fase
-desde la UI, con el código correcto a la primera— y después se borró. Los
-conteos volvieron a 35, pero `phases.task_code_seq` de F2 quedó en 5: es un
-watermark monotónico y nunca decrece (D-11).
+Corregida el 27 ago 2026. F1 y F2 estaban invertidas por la pérdida documentada
+abajo. Los porcentajes no se mueven: las dos fases afectadas estaban y siguen en
+0.0 %, y el promedio del proyecto sobre las cinco fases queda igual.
 
-**Consecuencia para quien verifique el 1C:** la próxima tarea de F2 nace
-`T06`, no `T05`. Es el diseño, no una falla del allocator.
+### Watermarks y códigos quemados — 27 ago 2026
 
-**Los contadores de huérfanas también tienen códigos quemados.** El proyecto 7
-tiene `orphan_task_code_seq` en 6 con cinco huérfanas vivas (`T01`–`T05`, todas
-con `legacy_code` F30–F34, el Handoff parqueado): `T06` se asignó y su fila no
-sobrevivió. O una tarea creada desde la UI durante el 1B y borrada, o la deuda
-#14 —el RPC asigna y el insert falla después—. No hay colisión posible: el
-contador va por encima del MAX real y es monotónico. El proyecto 5 quedó en 3
-tras la prueba de aceptación del punto 1, que creó y borró `T03`.
+| Contador | Valor | Vivas | Quemados |
+|---|---|---|---|
+| `task_code_seq` F0 | 8 | 8 | — |
+| `task_code_seq` F1 | 5 | 4 | T05 (era F18, borrada por error) |
+| `task_code_seq` F2 | 5 | 5 | — |
+| `task_code_seq` F3 | 4 | 4 | — |
+| `task_code_seq` F4 | 9 | 9 | — |
+| `orphan_task_code_seq` p7 | 6 | 5 | T06 |
+| `orphan_task_code_seq` p5 | 3 | 2 | T03 |
+| `orphan_task_code_seq` p9 | 7 | 3 | T03–T06 |
+
+El sandbox estrena una clase de quemado que antes no estaba descrita: T03 a T06
+nunca existieron. Los quemó el Pass 3 de la 013b al elevar el watermark por
+encima del código explícito T07 que traía el payload. Quemado por elevación, no
+por borrado.
+
+### La tarea perdida — id 54, `legacy_code` F18
+
+**Se borró una tarea real del proyecto 7 el 26 ago 2026, por error.** El commit
+`6e372f5` ("docs: revertir conteos de la §2 tras borrar la tarea de prueba")
+registra la intención de borrar la tarea de prueba. Lo que se borró fue otra fila.
+
+`Desarrollo motriz` (id 249, F2-T05) **está viva**: creada 2026-08-26 23:57:15,
+con `updated_at` idéntico al `created_at`. Nunca se tocó después de nacer.
+
+La fila que falta es el **id 54**, `legacy_code` **F18**, que era **F1-T05**. Es
+el único código del mapeo de la 013 sin fila viva.
+
+Cómo se reconstruyó, para que nadie lo rehaga: los ids de las 34 tareas legacy
+del proyecto 7 corresponden con su `legacy_code` por un offset fijo de 36, sin
+excepciones y a ambos lados del hueco (53→F17, 55→F19). El único hueco de id en
+el rango 36–70 es el 54.
+
+**Alcance, medido:** F18 no tenía subtareas. `PLAN-SEMILLA-ETAPA1.md §5` declara
+Fase 1 = 5 tareas / 13 subtareas, y las cuatro vivas de F1 suman exactamente 13.
+Tampoco tenía responsables: no quedó un solo `assignment` huérfano. Se perdió un
+título, un estado, una prioridad y sus fechas.
+
+**No es recuperable.** El plan Free de Supabase no incluye backups.
+
+Rastro para reconstruir el título: F18 no viene del JSON de importación original
+—ese trae 16 tareas, cuatro por fase, y las cuatro de Fase 1 están vivas—. Nació
+después, en la misma tanda que F19 ("Accesos sitio WEB showroommiami.com") y F20
+("Determinar ADN o manual de marca"), ids 55 y 56. Pertenecía a Fase 1.
+
+**Por qué el gate no lo vio:** una tarea real menos y una de prueba más se
+compensaron y el total quedó en 35. La §2 se corrigió razonando desde la
+intención en vez de volver a medir la tabla por fase, que sí lo habría mostrado.
+Revertir un número en un documento no es re-medirlo.
 
 ### Postura de RLS — es MIXTA, y es el estándar real
 
@@ -156,6 +196,7 @@ Se suman a las siete de `PLAN-SEMILLA-1B §3`.
 | **D-17** | **Toda tarea nueva nace dentro de una fase.** El esquema mantiene `phase_id` nullable —hay 7 huérfanas vivas y el importador crea más— pero la UI deja de fabricarlas. "Sin fase" pasa a ser sala de espera, no destino. Amienda C-3. | 🟡 gate de UI aplicado el 26 ago (§6.0). Se cierra con D-19. |
 | **D-18** | **Los emergentes son planos.** Un `work_item` no tiene hijos. Bug, deuda y RFC **generan** una tarea dentro de una fase y quedan vinculados por `generated_task_id`; el trabajo vive en la jerarquía. Un solo árbol. Los tres suman `checklist jsonb`. | ⬜ Etapa 2 |
 | **D-19** | **ABM de fases, y con él se cierra D-17.** "Nueva tarea sin fase" desaparece en todos lados; un proyecto con cero fases muestra "Crear primera fase". El modo plano pasa a ser estado heredado del proyecto 5, no una alternativa viva. | ⬜ paso 1C |
+| **D-20** | **Eliminar fase: bloqueo por defecto, cascada solo admin y en dos pasos.** Por defecto el borrado se bloquea mientras la fase tenga tareas, con el conteo en el mensaje. Existe un camino de cascada reservado a rol `admin` y con confirmación en dos pasos, calcado del borrado masivo de proyecto (`CLAUDE.md §7`). | ⬜ paso 1C |
 
 ### El fundamento de D-15, para no reabrirlo
 
@@ -188,6 +229,31 @@ crea el usuario, con nombre. Se parecen y no son lo mismo.
 bug contiene tareas". La segunda lectura es una jerarquía paralela: allocator
 nuevo, UI nueva, y rompe el máximo de tres niveles persistentes porque habría
 dos árboles. La primera cuesta un campo y una acción.
+
+### El fundamento de D-20
+
+`tasks.phase_id` declara `ON DELETE SET NULL`. Borrar una fase con tareas no las
+borra ni falla: las suelta al namespace de códigos huérfanos del proyecto, donde
+el índice único parcial `idx_tasks_project_orphan_code` sobre `(project_id, code)`
+las hace colisionar. Los dos desenlaces posibles son malos: error crudo de clave
+duplicada en pantalla, o dos T01 conviviendo si el índice no llegó a crearse.
+
+De ahí las dos cláusulas. El bloqueo por defecto tiene precedente en el propio
+repo: `deleteProjectTask` ya se niega a borrar una tarea con subtareas. Y la
+fase se vacía moviendo tareas a otra fase —la funcionalidad del punto 3 del 1C—,
+no soltándolas, que contradiría D-17 y D-19.
+
+Dos cosas que la implementación no puede saltear:
+
+La cascada **no puede apoyarse en la FK**. Tiene que borrar tareas, subtareas y
+filas de `assignments` explícitamente en código, y con eso saltea deliberadamente
+la guarda de subtareas de `deleteProjectTask`. Ese salteo es lo que justifica
+exigir admin y dos pasos, no un detalle de implementación.
+
+Es el **primer chequeo de rol sobre una acción destructiva de este repo**. Los
+tres actions de borrado usan `createServerClient()` con anon key y no saben quién
+pide el borrado. Implementar la cláusula admin obliga a leer la sesión dentro del
+action.
 
 ---
 
@@ -331,7 +397,22 @@ insert omite la clave: una fila puede nacer **sin código** en silencio. Con
 cuatro contadores la probabilidad sube. `composeCode` ya lo tolera —devuelve
 `null` y la UI oculta el badge— pero la fila queda sin identidad.
 
-### 6.6 El botón Importar sigue sin probarse end-to-end
+### ~~6.6 El botón Importar sigue sin probarse end-to-end~~ · CERRADO
+
+**Cerrado el 27 ago sobre el proyecto 9 (sandbox).** Delta declarado antes de
+importar y cumplido en los siete puntos: tres tareas T01, T02 y T07; dos
+subtareas S01 y S02 bajo la primera; las tres con `phase_id` NULL; prioridad
+`high` normalizada desde "Alta"; subtareas de la base 106 → 108; proyecto 7
+intacto en 35; y `orphan_task_code_seq` en **7**, que era el control positivo —
+solo llega a 7 si el Pass 3 eleva el watermark por encima del código explícito.
+El modo de falla que temía esta sección no existe.
+
+Segunda prueba, la del error: un payload con `"code": "F3"` pasa la vista previa
+**en verde** ("Se crearán 1 tarea y 0 subtareas") y recién revienta al confirmar,
+con el mensaje crudo de Postgres íntegro hasta el "Quitá el campo". Cero filas
+escritas. Confirmado en pantalla que la vista previa no valida códigos y que el
+error del RPC viaja intacto del SQL al usuario. Detalle menor: el recuadro verde
+no desaparece cuando aparece el rojo; conviven diciendo cosas opuestas.
 
 Viene de `PLAN-SEMILLA-1B §5.2` y no se cerró: desapareció al cambiar de
 documento. La 013b pasó su smoke test dentro de Postgres, pero nadie apretó

@@ -77,13 +77,16 @@ Server Component (fetch) → props → Client Component (interacción)
 /src
   /lib
     /supabase        client.ts, server.ts, types.ts, auth.ts,
-                     active-user.ts, *-actions.ts, schema.sql, /migrations
-    /validations     esquemas Zod
-    constants.ts, task-constants.ts
+                     active-user.ts, *-actions.ts, import-schema.ts,
+                     schema.sql, /migrations
+    constants.ts, task-constants.ts, work-plan.ts
   /store             Zustand
 /docs                FUNCIONALIDADES.md, CHANGELOG.md,
                      ARQUITECTURA-WORKPLAN.md
 ```
+
+**No existe `/src/lib/validations`.** El esquema Zod del importador vive en
+`src/lib/supabase/import-schema.ts`. Verificado el 27 ago 2026.
 
 Es asimétrico (`/app` y `/components` fuera de `/src`) pero **es el estándar del repo. No reorganizar.** El alias `@/` apunta a la raíz.
 
@@ -186,7 +189,7 @@ Consecuencias:
 
 - Todo SQL que se corre a mano impacta producción en el acto.
 - `localhost:3001` y la app desplegada leen y escriben los mismos datos.
-- El backup de Supabase es el único rollback.
+- **No hay rollback.** El plan Free de Supabase no incluye backups. Verificado el 27 ago 2026. Toda migración destructiva —empezando por la 014— exige un dump manual previo, guardado fuera del repo, antes de correr una sola línea de SQL.
 
 Variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (solo servidor).
 
@@ -260,6 +263,14 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 13. ~~`TaskWithSubtasks`~~ — **eliminado** en el paso 1A.
 14. `allocCode` en `project-task-actions.ts` devuelve `null` si el RPC falla y el insert omite la clave: una fila puede nacer sin código en silencio.
 15. El dashboard mide `tareas done / totales` y el detalle de proyecto mide avance del plan. Para el proyecto 7 son 34 % y 19.8 %. Métricas distintas, etiquetas parecidas.
+16. Ningún camino de borrado registra nada: no hay tabla de log, ni soft delete, ni `deleted_at`, ni columna de autor. Un borrado no deja rastro en la aplicación.
+17. Ningún action de borrado verifica rol. Los tres usan `createServerClient()` (anon key, sin sesión): no saben quién pide el borrado.
+18. `deleteProjectTask` no valida que la tarea pertenezca al `projectId` recibido. Filtra solo por `id`; `projectId` se usa únicamente para `revalidatePath`.
+19. Ningún borrado limpia `assignments`. La tabla no tiene FK sobre `assignable_id` por ser polimórfica, así que la base tampoco lo hace. `syncTaskAssignees` sabe hacerlo y no se llama desde el borrado.
+20. El handler de borrado de subtarea desestructura `error` y no lo usa: un borrado fallido no muestra nada y ni siquiera refresca. El de tarea sí tiene su `alert`.
+21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
+22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
+23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
 
 ---
 
@@ -267,6 +278,6 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
 Una línea cada una. El fundamento completo de las dos últimas está en `docs/CHANGELOG.md`, en la entrada de la Fase 8B.
 
-1. ~~Arquitectura del Work Plan~~ — **cerrada.** Modelo en `docs/ARQUITECTURA-WORKPLAN.md`; decisiones D-1 a D-16 en `docs/PLAN-SEMILLA-1B.md` y `docs/PLAN-SEMILLA-1C.md`. Tablas separadas para la jerarquía, `assignments` polimórfica, `work_items` única para lo emergente en la Etapa 2.
+1. ~~Arquitectura del Work Plan~~ — **cerrada.** Modelo en `docs/ARQUITECTURA-WORKPLAN.md`; decisiones D-1 a D-20 en `docs/PLAN-SEMILLA-1B.md` y `docs/PLAN-SEMILLA-1C.md`. Tablas separadas para la jerarquía, `assignments` polimórfica, `work_items` única para lo emergente en la Etapa 2.
 2. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
 3. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
