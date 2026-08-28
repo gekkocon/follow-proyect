@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, 1D completo** (1D-a: importador con fase obligatoria, migración 013e. 1D-b: `tasks.phase_id NOT NULL`, migración 013f).
+Última fase cerrada: **Etapa 1, 1D completo** (1D-a: importador con fase obligatoria, migración 013e. 1D-b: `tasks.phase_id NOT NULL`, migración 013f) **+ 1F-b** (retiro del namespace huérfano, migración 013g).
 
 ---
 
@@ -112,7 +112,7 @@ Los ids **no son todos bigserial**: `projects.id`, `tasks.id` y `subtasks.id` so
 
 Campos reales — **en inglés**, no en español:
 
-- `projects`: name, description, status, priority, owner_id, start_date, due_date, phase_code_seq, orphan_task_code_seq
+- `projects`: name, description, status, priority, owner_id, start_date, due_date, phase_code_seq
 - `phases`: project_id, code, name, objective, status, priority, start_date, due_date, completed_at, sort_order, task_code_seq
 - `tasks`: title, description, status, priority, project_id, **phase_id**, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
 - `subtasks`: igual + task_id + completed + legacy_code + completed_at; sin is_blocked ni blocked_reason
@@ -292,7 +292,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
 23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
-24. Las RPC existentes se otorgan con `TO anon, authenticated` — `import_project_tasks` y los tres allocators. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
+24. Las RPC existentes se otorgan con `TO anon, authenticated` — `alloc_task_code_in_phase` y el allocator de subtareas. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
 25. `updateUserRole` cambia el rol de cualquier usuario sin verificar quién llama, y `createUser` usa la service role sin guarda de autorización. Son **precondición** de cualquier gate por rol: quien puede autopromoverse a `admin` después usa la cascada legítimamente.
 26. `createPhase` pide el código por RPC y después inserta: dos requests, dos transacciones. Si el insert falla, el código ya quedó quemado. Es la no-atomicidad de PostgREST, no un descuido — pero significa que cada alta fallida consume un código de fase.
 27. El avance del proyecto **desaparece** de la tarjeta cuando `projectProgress` devuelve null. Un proyecto cuyas fases estén todas vacías pierde la barra entera en vez de mostrar "—", que es lo que sí hace cada fase. Observado en el proyecto 9.
