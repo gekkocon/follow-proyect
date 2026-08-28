@@ -60,25 +60,32 @@ async function syncSubtaskAssignees(
 /**
  * Fase 8A — reserves the next human-readable code.
  *
- * Allocation lives in Postgres (`alloc_task_code` / `alloc_subtask_code`,
- * migration 010) because it bumps a burn counter in the same statement that
- * reads it: the code is identity, so it is never renumbered and never reused
- * after a delete. Doing it here with a MAX(code) + 1 read would hand the same
- * code to two concurrent inserts and would recycle the code of a deleted row.
+ * Allocation lives in Postgres (`alloc_task_code_in_phase` /
+ * `alloc_subtask_code`, migration 010) because it bumps a burn counter in the
+ * same statement that reads it: the code is identity, so it is never
+ * renumbered and never reused after a delete. Doing it here with a
+ * MAX(code) + 1 read would hand the same code to two concurrent inserts and
+ * would recycle the code of a deleted row.
  *
- * Returns null on failure so callers can decide: creating a row without a code
- * is preferable to failing the whole create, and `alloc_subtask_code`
- * self-heals a missing parent code on the next subtask.
+ * Etapa 1, paso 1G / deuda 14 — a failed allocation now ABORTS instead of
+ * returning null and letting the insert land without a code: the null path
+ * predates the role/membership gate on these RPCs, and a rejected call needs
+ * a visible error, not a silently code-less row. Same stance as `createPhase`
+ * and `moveTaskToPhase`.
  */
 async function allocCode(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  fn: 'alloc_task_code' | 'alloc_task_code_in_phase' | 'alloc_subtask_code',
+  fn: 'alloc_task_code_in_phase' | 'alloc_subtask_code',
   args: Record<string, number>
-): Promise<string | null> {
+): Promise<{ code: string | null; error: string | null }> {
   const { data, error } = await supabase.rpc(fn, args);
-  if (error) return null;
-  return (data as string) ?? null;
+  if (error) return { code: null, error: error.message };
+
+  const code = String(data ?? '').trim();
+  if (!code) return { code: null, error: 'No se pudo generar el código.' };
+
+  return { code, error: null };
 }
 
 /**
@@ -137,7 +144,8 @@ export async function createProjectTask(
   phaseId: number
 ): Promise<{ id: number | null; error: string | null }> {
   const supabase = await createAuthServerClient();
-  const code = await allocCode(supabase, 'alloc_task_code_in_phase', { p_phase_id: phaseId });
+  const { code, error: codeError } = await allocCode(supabase, 'alloc_task_code_in_phase', { p_phase_id: phaseId });
+  if (codeError) return { id: null, error: codeError };
 
   const { data: task, error } = await supabase
     .from('tasks')
@@ -145,7 +153,7 @@ export async function createProjectTask(
       ...data,
       project_id: projectId,
       phase_id: phaseId,
-      ...(code ? { code } : {}),
+      code,
     })
     .select('id')
     .single();
@@ -318,7 +326,8 @@ export async function createProjectSubtask(
   assigneeIds: number[]
 ): Promise<{ id: number | null; error: string | null }> {
   const supabase = await createAuthServerClient();
-  const code = await allocCode(supabase, 'alloc_subtask_code', { p_task_id: taskId });
+  const { code, error: codeError } = await allocCode(supabase, 'alloc_subtask_code', { p_task_id: taskId });
+  if (codeError) return { id: null, error: codeError };
 
   const { data: subtask, error } = await supabase
     .from('subtasks')
@@ -326,7 +335,7 @@ export async function createProjectSubtask(
       ...data,
       task_id: taskId,
       completed: data.status === 'done',
-      ...(code ? { code } : {}),
+      code,
     })
     .select('id')
     .single();
