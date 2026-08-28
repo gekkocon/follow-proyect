@@ -1,5 +1,8 @@
 # Plan semilla — 1E: cerrar 1D-a
 
+**CONGELADO el 28 ago 2026 al cerrar 1D-b (commit 90015fa).**
+Se consulta, no se amplía. Continúa en `PLAN-SEMILLA-1F.md`.
+
 **27 ago 2026.** Nace al cerrar el paso 6 de 9 de 1D-a.
 
 `PLAN-SEMILLA-1D.md` queda **congelado** como registro: se consulta, no se
