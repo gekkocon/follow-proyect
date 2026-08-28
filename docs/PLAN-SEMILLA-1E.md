@@ -12,7 +12,7 @@ amplía. `docs/ARQUITECTURA-WORKPLAN.md` sigue siendo la fuente del modelo.
 Adjuntarlo al chat nuevo junto con `CLAUDE.md`, los dos desde la carpeta del
 repo. Pegar el bloque de la §7 verbatim.
 
-Lo cerrado no se rediscute: D-1 a D-45.
+Lo cerrado no se rediscute: D-1 a D-46.
 
 ---
 
@@ -91,7 +91,8 @@ F30–F34 y no se toca (D-37).
 | 5º | p7·T05 Blog infra + editorial | 70 | F34 | p7 · F0 | T13 |
 | 6º | p9·T07 Sandbox C | 253 | — | p9 · F1 | T03 |
 
-Estado esperado al cerrar: **p7·F0 con 13 tareas y `task_code_seq` 13**;
+Estado esperado al cerrar: **la fase nueva de p5 con 2 tareas y
+`task_code_seq` 2**; **p7·F0 con 13 tareas y `task_code_seq` 13**;
 **p9·F1 con 3 y contador 3**.
 
 **Las ocho filas van en el orden de la tabla, empezando por las dos de p5.**
@@ -154,6 +155,10 @@ Ninguna urgente. Las tres juntas, en una sola edición, después del paso 9.
   (`.next/server/app/(dashboard)/projects/[id]/page.js`) comparado contra la
   hora del sistema. Es evidencia directa; el renglón `✓ Compiled /ruta` es
   indirecta.
+- **D-46** — las 2 huérfanas del proyecto 5 se mudan a la fase que crea el
+  paso 7, y van primero en el orden. Son las únicas dos de las ocho que
+  conservan su código: la fase nueva nace con `task_code_seq` en 0, así que
+  reciben T01 y T02, los mismos que tienen hoy.
 
 ---
 
