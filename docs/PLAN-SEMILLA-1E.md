@@ -82,6 +82,8 @@ F30–F34 y no se toca (D-37).
 
 | Orden | Tarea hoy | id | legacy | Destino | Código previsto |
 |---|---|---|---|---|---|
+| 1º | p5·T01 Investigar conexión Workana | 12 | F0 | p5 · fase del paso 7 | T01 |
+| 2º | p5·T02 GPT generador de propuestas | 13 | F1 | p5 · fase del paso 7 | T02 |
 | 1º | p7·T01 GBP ajustes 30 jul | 66 | F30 | p7 · F0 | T09 |
 | 2º | p7·T02 Manual de Marca | 67 | F31 | p7 · F0 | T10 |
 | 3º | p7·T03 Infraestructura y accesos | 68 | F32 | p7 · F0 | T11 |
@@ -91,6 +93,12 @@ F30–F34 y no se toca (D-37).
 
 Estado esperado al cerrar: **p7·F0 con 13 tareas y `task_code_seq` 13**;
 **p9·F1 con 3 y contador 3**.
+
+**Las ocho filas van en el orden de la tabla, empezando por las dos de p5.**
+Los números de orden 1º a 6º de las filas de p7 y p9 quedaron corridos: leer
+la tabla de arriba hacia abajo, no por su número. Las dos de p5 son las únicas
+que NO pierden su código: la fase del paso 7 nace con `task_code_seq` en 0, así
+que reciben T01 y T02, los mismos que tienen hoy (D-46).
 
 Los destinos 4º y 5º eran los dudosos: si alguno cambia de fase, **recalcular
 los códigos de los que le siguen antes de mover**.
