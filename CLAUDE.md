@@ -145,12 +145,13 @@ El código guardado es **local**. El compuesto (`F0-T03-S02`) se arma al mostrar
 |---|---|---|---|---|
 | Fase | `F0`, `F1` sin padding | proyecto | `projects.phase_code_seq` | PRE |
 | Tarea en fase | `T01` padding 2 | fase | `phases.task_code_seq` | POST |
-| Tarea sin fase | `T01` padding 2 | proyecto | `projects.orphan_task_code_seq` | POST |
 | Subtarea | `S01` padding 2 | tarea | `tasks.subtask_code_seq` | POST |
+
+El camino "tarea sin fase" existió en la Etapa 1 (paso 1C) y se retiró completo en 1F: hoy toda tarea nace con phase_id NOT NULL (013f) y createProjectTask lo exige por tipo (commit 79c084c). La columna projects.orphan_task_code_seq se dropeó en 013g.
 
 **Los contratos PRE y POST son distintos a propósito. No unificarlos.**
 
-Allocators: `alloc_phase_code`, `alloc_task_code` (sin fase), `alloc_task_code_in_phase`, `alloc_subtask_code`. Padding con ancho dinámico `GREATEST(2, length(...))`: un `lpad` fijo trunca y colisiona.
+Allocators: `alloc_phase_code`, `alloc_task_code_in_phase`, `alloc_subtask_code`. Padding con ancho dinámico `GREATEST(2, length(...))`: un `lpad` fijo trunca y colisiona.
 
 Watermarks monotónicos: nunca decrecen, los códigos borrados quedan quemados.
 
@@ -292,7 +293,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
 23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
-24. Las RPC existentes se otorgan con `TO anon, authenticated` — `alloc_task_code_in_phase` y el allocator de subtareas. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
+24. Las RPC existentes se otorgan con `TO anon, authenticated` — `alloc_phase_code`, `alloc_task_code_in_phase` y `alloc_subtask_code`. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.
 25. `updateUserRole` cambia el rol de cualquier usuario sin verificar quién llama, y `createUser` usa la service role sin guarda de autorización. Son **precondición** de cualquier gate por rol: quien puede autopromoverse a `admin` después usa la cascada legítimamente.
 26. `createPhase` pide el código por RPC y después inserta: dos requests, dos transacciones. Si el insert falla, el código ya quedó quemado. Es la no-atomicidad de PostgREST, no un descuido — pero significa que cada alta fallida consume un código de fase.
 27. El avance del proyecto **desaparece** de la tarjeta cuando `projectProgress` devuelve null. Un proyecto cuyas fases estén todas vacías pierde la barra entera en vez de mostrar "—", que es lo que sí hace cada fase. Observado en el proyecto 9.
