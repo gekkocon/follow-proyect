@@ -239,7 +239,7 @@ export async function moveTaskToPhase(
   projectId: number,
   targetPhaseId: number
 ): Promise<{ code: string | null; error: string | null }> {
-  const supabase = createServerClient();
+  const supabase = await createAuthServerClient();
 
   // `maybeSingle` and not `single`: a missing row is an expected outcome
   // here and deserves its own message, not PostgREST's zero-rows error.
