@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient } from './server';
+import { createServerClient, createAuthServerClient } from './server';
+import { getActiveUser, isGlobalAdmin } from './active-user';
 import type { ProjectFormValues } from './project-schema';
 import type { ProjectWithRelations, DbUser } from './types';
 
@@ -100,7 +101,11 @@ export async function deleteProject(
   id: number,
   force = false
 ): Promise<{ error: string | null; hasTasksError?: boolean; taskCount?: number }> {
-  const supabase = createServerClient();
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!isGlobalAdmin(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
 
   const { count } = await supabase
     .from('tasks')

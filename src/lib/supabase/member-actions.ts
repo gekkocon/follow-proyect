@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient } from './server';
+import { createServerClient, createAuthServerClient } from './server';
+import { getActiveUser, canManageTeam } from './active-user';
 import type { ProjectMemberWithUser } from './types';
 
 export async function getProjectMembers(projectId: number): Promise<ProjectMemberWithUser[]> {
@@ -75,8 +76,16 @@ export async function removeProjectMember(
   memberId: number,
   projectId: number
 ): Promise<{ error: string | null }> {
-  const supabase = createServerClient();
-  const { error } = await supabase.from('project_members').delete().eq('id', memberId);
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!canManageTeam(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
+  const { error } = await supabase
+    .from('project_members')
+    .delete()
+    .eq('id', memberId)
+    .eq('project_id', projectId);
   if (error) return { error: error.message };
   revalidatePath(`/projects/${projectId}`);
   return { error: null };

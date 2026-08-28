@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAuthServerClient } from './server';
+import { getActiveUser, canManageTeam } from './active-user';
 import type { DbPhase } from './types';
 
 // ─────────────────────────────────────────────
@@ -130,7 +131,11 @@ export async function deletePhase(
   phaseId: number,
   projectId: number
 ): Promise<{ error: string | null }> {
-  const supabase = createServerClient();
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!canManageTeam(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
 
   const { count, error: countError } = await supabase
     .from('tasks')

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAuthServerClient } from './server';
+import { getActiveUser, canManageTeam } from './active-user';
 import { buildWorkPlan, type ProjectWorkPlan } from '@/src/lib/work-plan';
 import type { DbTask, DbSubtask, DbUser, TaskWithFullRelations, SubtaskWithAssignees } from './types';
 
@@ -188,7 +189,11 @@ export async function deleteProjectTask(
   taskId: number,
   projectId: number
 ): Promise<{ error: string | null }> {
-  const supabase = createServerClient();
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!canManageTeam(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
 
   const { count } = await supabase
     .from('subtasks')
@@ -199,7 +204,13 @@ export async function deleteProjectTask(
     return { error: 'No se puede eliminar una tarea que tiene subtareas. Elimínalas primero.' };
   }
 
-  const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+  await syncTaskAssignees(supabase, taskId, []);
+
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', taskId)
+    .eq('project_id', projectId);
   if (error) return { error: error.message };
 
   revalidatePath(`/projects/${projectId}`);
@@ -372,7 +383,37 @@ export async function deleteProjectSubtask(
   subtaskId: number,
   projectId: number
 ): Promise<{ error: string | null }> {
-  const supabase = createServerClient();
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!canManageTeam(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
+
+  // `subtasks` has no `project_id` of its own — it hangs off `task_id`, so
+  // ownership resolves through the parent task, same two-step lookup
+  // `moveTaskToPhase` uses instead of relying on a typed join.
+  const { data: subtask, error: subtaskError } = await supabase
+    .from('subtasks')
+    .select('task_id')
+    .eq('id', subtaskId)
+    .maybeSingle();
+
+  if (subtaskError) return { error: subtaskError.message };
+  if (!subtask) return { error: 'La subtarea no existe.' };
+
+  const { data: parentTask, error: taskError } = await supabase
+    .from('tasks')
+    .select('project_id')
+    .eq('id', subtask.task_id)
+    .maybeSingle();
+
+  if (taskError) return { error: taskError.message };
+  if (!parentTask || parentTask.project_id !== projectId) {
+    return { error: 'La subtarea no pertenece a este proyecto.' };
+  }
+
+  await syncSubtaskAssignees(supabase, subtaskId, []);
+
   const { error } = await supabase.from('subtasks').delete().eq('id', subtaskId);
   if (error) return { error: error.message };
 

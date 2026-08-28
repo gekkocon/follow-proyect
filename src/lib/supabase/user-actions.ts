@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient, createAdminClient } from './server';
+import { createServerClient, createAuthServerClient, createAdminClient } from './server';
 import { getActiveUser, isGlobalAdmin } from './active-user';
 import type { DbUser } from './types';
 
@@ -210,7 +210,11 @@ export async function updateUserStatus(
 export async function deleteUser(
   id: number
 ): Promise<{ error: string | null; blockedBy?: string }> {
-  const supabase = createServerClient();
+  const activeUser = await getActiveUser();
+  if (!activeUser) return { error: 'No autenticado.' };
+  if (!isGlobalAdmin(activeUser)) return { error: 'No autorizado.' };
+
+  const supabase = await createAuthServerClient();
 
   const [{ data: tasks }, { data: projects }] = await Promise.all([
     supabase
