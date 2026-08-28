@@ -5,6 +5,14 @@
 
 ---
 
+## Fase 1D-b — phase_id obligatorio — 2026-08-28
+
+**Alcance:** migración 013f. `tasks.phase_id` pasa a `NOT NULL` con gate
+de guardia previo. El invariante "toda tarea vive en una fase" queda
+impuesto por la base, no solo por la UI.
+
+---
+
 ## Fase 1D-a — Importador con fase obligatoria — 2026-08-28
 
 **Alcance:** cero tareas huérfanas en la base. El importador exige fase

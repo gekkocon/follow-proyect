@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, 1D-a completo** (importador con fase obligatoria, migración 013e, cero tareas huérfanas en toda la base).
+Última fase cerrada: **Etapa 1, 1D completo** (1D-a: importador con fase obligatoria, migración 013e. 1D-b: `tasks.phase_id NOT NULL`, migración 013f).
 
 ---
 
@@ -114,7 +114,7 @@ Campos reales — **en inglés**, no en español:
 
 - `projects`: name, description, status, priority, owner_id, start_date, due_date, phase_code_seq, orphan_task_code_seq
 - `phases`: project_id, code, name, objective, status, priority, start_date, due_date, completed_at, sort_order, task_code_seq
-- `tasks`: title, description, status, priority, project_id, **phase_id (nullable)**, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
+- `tasks`: title, description, status, priority, project_id, **phase_id**, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
 - `subtasks`: igual + task_id + completed + legacy_code + completed_at; sin is_blocked ni blocked_reason
 - `assignments`: assignable_type (`task | subtask | work_item`), assignable_id, user_id — UNIQUE sobre los tres
 - `project_members`: project_id, user_id, rol_en_proyecto *(TEXT libre, no enum)*

@@ -253,3 +253,21 @@ Pasos 7, 8 y 9 completados y verificados extremo a extremo.
 
 **1D-a queda cerrado.** Este documento pasa a estado congelado, igual que
 1D-b lo hizo con 1D-a: se consulta, no se amplía.
+
+---
+
+## 9. Cierre de 1D-b — 28 ago 2026
+
+Migración **013f** aplicada y verificada: `tasks.phase_id` es `NOT NULL`.
+Incluye gate de guardia (`RAISE EXCEPTION` si encuentra alguna tarea con
+`phase_id IS NULL` antes de alterar el esquema) — no disparó, confirmando
+lo ya medido en el paso 9 de 1D-a.
+
+Alcance deliberadamente acotado: **solo el NOT NULL.** La baja del
+namespace huérfano (`orphan_task_code_seq`, índice parcial
+`idx_tasks_orphan_code`, allocator `alloc_task_code`) queda pendiente como
+limpieza propia, sin apuro — no aumenta el riesgo de una migración ya
+cerrada.
+
+**1D queda cerrado por completo (1D-a + 1D-b).** Este documento pasa a
+estado congelado.
