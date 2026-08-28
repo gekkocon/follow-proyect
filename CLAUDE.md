@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, paso C-1** (mover tarea entre fases con código realocado del watermark destino).
+Última fase cerrada: **Etapa 1, paso 1C-c** (borrar fase, con D-20 impuesta por la base vía migración 013d).
 
 ---
 
@@ -55,7 +55,7 @@ Server Component (fetch) → props → Client Component (interacción)
 
 **Archivos de acciones (8):** `project-actions`, `project-task-actions`, `project-import-actions`, `task-actions`, `member-actions`, `user-actions`, `brand-actions`, `phase-actions`.
 
-`phase-actions.ts` nació en el paso 1C-b con `createPhase` y `updatePhase`. Es el único archivo de acciones que escribe en `phases`.
+`phase-actions.ts` nació en el paso 1C-b con `createPhase` y `updatePhase`, y sumó `deletePhase` en 1C-c. Es el único archivo de acciones que escribe en `phases`.
 
 **Clientes de Supabase** (`src/lib/supabase/server.ts`):
 
@@ -287,7 +287,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 16. Ningún camino de borrado registra nada: no hay tabla de log, ni soft delete, ni `deleted_at`, ni columna de autor. Un borrado no deja rastro en la aplicación.
 17. Ningún action de borrado verifica rol. Los tres usan `createServerClient()` (anon key, sin sesión): no saben quién pide el borrado.
 18. `deleteProjectTask` no valida que la tarea pertenezca al `projectId` recibido. Filtra solo por `id`; `projectId` se usa únicamente para `revalidatePath`.
-19. Ningún borrado limpia `assignments`. La tabla no tiene FK sobre `assignable_id` por ser polimórfica, así que la base tampoco lo hace. `syncTaskAssignees` sabe hacerlo y no se llama desde el borrado.
+19. Ningún borrado limpia `assignments`, **salvo `deleteProject` con `force`**, que sí lo hace (project-actions.ts:135-148) y es el único. La tabla no tiene FK sobre `assignable_id` por ser polimórfica, así que la base tampoco lo hace. `syncTaskAssignees` sabe hacerlo y no se llama desde los demás borrados.
 20. El handler de borrado de subtarea desestructura `error` y no lo usa: un borrado fallido no muestra nada y ni siquiera refresca. El de tarea sí tiene su `alert`.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
@@ -299,6 +299,8 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 28. `StatusBadge` llama "Completada" al valor `done` y `TASK_STATUSES` lo llama "Finalizada". Desde 1C-b las dos etiquetas conviven en la misma pantalla: el badge de la cabecera de fase y el select de su formulario. Es la doble lista de la deuda 4, ahora visible.
 29. `moveTaskToPhase` (C-1) no verifica rol ni sesión: usa `createServerClient` con la anon key, igual que el resto. Extiende la deuda 17 al movimiento.
 30. `moveTaskToPhase` no es atómica. Pide el código por RPC y después escribe: si el update falla, el código del destino ya quedó quemado. Es la misma no-atomicidad de PostgREST de la deuda 26, ahora también en el movimiento.
+31. `schema.sql` no sólo está desactualizado (deuda 22): **se contradice con la base**. Declara `subtasks.task_id ... ON DELETE CASCADE` en su línea 99, mientras `pg_constraint` mide `NO ACTION`. Reconstruir desde ese archivo haría que borrar una tarea se llevara sus subtareas y dejaría el guard de `deleteProjectTask` de adorno.
+32. El registro del Service Worker falla en dev: `SW registration failed`, dos veces por carga, en toda ruta. El `sw.js` de la Fase 6B no se genera fuera de build. **Sin verificar en Vercel**: si también falla ahí, la PWA está rota en producción.
 
 ---
 

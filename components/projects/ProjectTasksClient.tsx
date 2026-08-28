@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
 import { ProgressBar } from './ProgressBar';
 import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
+import { deletePhase } from '@/src/lib/supabase/phase-actions';
 import { phaseProgress, type ProjectWorkPlan, type PhaseWithTasks } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type { TaskWithFullRelations, DbTask, DbUser, DbPhase } from '@/src/lib/supabase/types';
@@ -386,6 +387,35 @@ function WorkSection({
             >
               <Pencil size={13} />
             </button>
+          )}
+          {phase && (
+            <span
+              className="shrink-0"
+              title={
+                tasks.length > 0
+                  ? 'No se puede eliminar una fase con tareas. Muévelas a otra fase primero.'
+                  : 'Eliminar fase'
+              }
+            >
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const label = code ? `${code} · ${name}` : name;
+                  const burned = code ? ` El código ${code} no se reutiliza.` : '';
+                  if (!confirm(`¿Eliminar la fase ${label}?${burned}`)) return;
+                  const { error } = await deletePhase(phase.id, projectId);
+                  if (error) {
+                    alert(error);
+                    return;
+                  }
+                  onRefresh();
+                }}
+                disabled={tasks.length > 0}
+                className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:bg-transparent"
+              >
+                <Trash2 size={13} />
+              </button>
+            </span>
           )}
         </div>
       )}
