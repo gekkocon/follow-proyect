@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, paso 1C-c** (borrar fase, con D-20 impuesta por la base vía migración 013d).
+Última fase cerrada: **Etapa 1, 1D-a completo** (importador con fase obligatoria, migración 013e, cero tareas huérfanas en toda la base).
 
 ---
 

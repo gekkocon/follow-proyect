@@ -233,3 +233,23 @@ Ninguna urgente. Las tres juntas, en una sola edición, después del paso 9.
       ▶ DESTINO: SUPABASE 👾 (SQL a mano, base única y viva)
       ▶ DESTINO: WORKGPT 👁️ (pruebas de navegador)
       ▶ DESTINO: HUMANO 👽 (Hikashi)
+
+---
+
+## 8. Cierre — 27/28 ago 2026
+
+Pasos 7, 8 y 9 completados y verificados extremo a extremo.
+
+- Paso 7: fase F1 "Estructura" creada en proyecto 5, `task_code_seq` inicial 0.
+- Paso 8: las 8 huérfanas movidas en el orden de la §3. Siete coincidieron
+  exacto con el código previsto. La octava (p9·T07 Sandbox C, id 253) salió
+  como **F1-T04**, no F1-T03 como preveía la tabla: el `task_code_seq` de
+  p9·F1 medido en la §1 (valor 3) ya reflejaba un código quemado por la
+  prueba del paso 5 de 1D-a, dato que la tabla de la §3 no propagó a su
+  forecast. No es un defecto de la app — es la misma aritmética POST
+  verificada en las siete filas anteriores.
+- Paso 9: `select count(*) from tasks where phase_id is null` devolvió 0 en
+  toda la base, no solo en los tres proyectos tocados.
+
+**1D-a queda cerrado.** Este documento pasa a estado congelado, igual que
+1D-b lo hizo con 1D-a: se consulta, no se amplía.

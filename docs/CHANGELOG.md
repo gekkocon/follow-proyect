@@ -5,6 +5,14 @@
 
 ---
 
+## Fase 1D-a — Importador con fase obligatoria — 2026-08-28
+
+**Alcance:** cero tareas huérfanas en la base. El importador exige fase
+destino y las 8 tareas huérfanas preexistentes se migraron a mano a sus
+fases (proyectos 5, 7 y 9).
+
+---
+
 ## Limpieza previa al Work Plan — 2026-08-26
 
 **Alcance:** tres cosas que no agregan funcionalidad y que había que sacar del camino antes de reestructurar el Work Plan: el ORM muerto, la columna legacy de responsable, y una premisa falsa sobre los entornos que estaba escrita en `CLAUDE.md`.
