@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient } from './server';
+import { createServerClient, createAuthServerClient } from './server';
 import type { DbPhase } from './types';
 
 // ─────────────────────────────────────────────
@@ -33,7 +33,7 @@ export async function createPhase(
   projectId: number,
   data: PhaseInput
 ): Promise<{ error: string | null }> {
-  const supabase = createServerClient();
+  const supabase = await createAuthServerClient();
 
   const { data: code, error: rpcError } = await supabase.rpc('alloc_phase_code', {
     p_project_id: projectId,

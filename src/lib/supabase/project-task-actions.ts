@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient } from './server';
+import { createServerClient, createAuthServerClient } from './server';
 import { buildWorkPlan, type ProjectWorkPlan } from '@/src/lib/work-plan';
 import type { DbTask, DbSubtask, DbUser, TaskWithFullRelations, SubtaskWithAssignees } from './types';
 
@@ -136,7 +136,7 @@ export async function createProjectTask(
   assigneeIds: number[],
   phaseId: number
 ): Promise<{ id: number | null; error: string | null }> {
-  const supabase = createServerClient();
+  const supabase = await createAuthServerClient();
   const code = await allocCode(supabase, 'alloc_task_code_in_phase', { p_phase_id: phaseId });
 
   const { data: task, error } = await supabase
@@ -317,7 +317,7 @@ export async function createProjectSubtask(
   data: SubtaskInput,
   assigneeIds: number[]
 ): Promise<{ id: number | null; error: string | null }> {
-  const supabase = createServerClient();
+  const supabase = await createAuthServerClient();
   const code = await allocCode(supabase, 'alloc_subtask_code', { p_task_id: taskId });
 
   const { data: subtask, error } = await supabase
