@@ -53,7 +53,7 @@ export async function createUser(
 ): Promise<{ error: string | null }> {
   const activeUser = await getActiveUser();
   if (!activeUser || !isGlobalAdmin(activeUser)) {
-    return { error: 'No tenés permiso para cambiar roles de usuario.' };
+    return { error: 'No tenés permiso para crear usuarios.' };
   }
 
   if (!values.password) {
