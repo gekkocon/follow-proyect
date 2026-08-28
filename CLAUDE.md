@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, 1D completo** (1D-a: importador con fase obligatoria, migración 013e. 1D-b: `tasks.phase_id NOT NULL`, migración 013f) **+ 1F-b** (retiro del namespace huérfano, migración 013g).
+Última fase cerrada: **Etapa 1, 1D completo + 1F-b + 1G completo** (gate de rol/membresía en los tres allocators, deuda 24 y 14 cerradas).
 
 ---
 
@@ -252,6 +252,12 @@ ejecuta y devuelve `es_admin: false` — el chequeo interno falla cerrado. Sin
 rol correctamente. Son dos capas independientes y cada una se probó por
 separado.
 
+Aplicada el 28 ago 2026 a `alloc_phase_code`, `alloc_task_code_in_phase` y
+`alloc_subtask_code`. La sonda de `request.jwt.claims` mencionada arriba no
+se encontró como artefacto vivo en el repo (grep vacío en `/migrations`,
+`schema.sql` y `docs/`); la sintaxis usada es la ya documentada en el punto
+4, sin verificación contra un artefacto original.
+
 ### Una pantalla no verifica nada sin su renglón de compilación
 
 Next dev compila por demanda y escribe a disco. Una pestaña ya renderizada
@@ -293,7 +299,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
 23. El botón Importar aparece en proyectos CON fases y las tareas importadas nacen huérfanas, mientras el alta manual lo tiene prohibido por D-17. Pendiente de resolver junto con D-19.
-24. Las RPC existentes se otorgan con `TO anon, authenticated` — `alloc_phase_code`, `alloc_task_code_in_phase` y `alloc_subtask_code`. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`. Auditado el 28 ago 2026: los tres se invocan con `createServerClient()` (anon, sin sesión) desde `phase-actions.ts`, `project-task-actions.ts` (dos funciones), sin chequeo de rol previo en ningún caso. Desbloqueada: deuda 25 cerrada (commit 6a2897f). Pendiente de ejecutar la receta de 6 pasos de §8 sobre los tres allocators.
+24. ~~Las RPC existentes se otorgan con `TO anon, authenticated` — `alloc_phase_code`, `alloc_task_code_in_phase` y `alloc_subtask_code`. Como la anon key vive en el bundle del navegador, hoy son invocables contra PostgREST sin pasar por la app, con cualquier `p_project_id`.~~ Cerrada el 28 ago 2026: los tres allocators (`alloc_phase_code`, `alloc_task_code_in_phase`, `alloc_subtask_code`) gatean rol y membresía dentro del cuerpo (`SECURITY INVOKER`, `REVOKE FROM anon` por nombre, `GRANT TO authenticated`). Verificado ACL (`pg_proc.proacl` sin `anon` en los tres) y camino bloqueado con cuenta real no-admin (jorohoan@gmail.com, role=developer, sin membresías): las tres llamadas devuelven 403/42501, cero mutación de contadores confirmada antes/después, en dos corridas independientes.
 25. ~~`updateUserRole` cambia el rol de cualquier usuario sin verificar quién llama, y `createUser` usa la service role sin guarda de autorización.~~ Cerrada el 28 ago 2026: las dos funciones gatean con `getActiveUser()` + `isGlobalAdmin()` como primera línea, antes de cualquier efecto secundario (commit 6a2897f). Desbloquea el cierre de la deuda 24.
 26. `createPhase` pide el código por RPC y después inserta: dos requests, dos transacciones. Si el insert falla, el código ya quedó quemado. Es la no-atomicidad de PostgREST, no un descuido — pero significa que cada alta fallida consume un código de fase.
 27. El avance del proyecto **desaparece** de la tarjeta cuando `projectProgress` devuelve null. Un proyecto cuyas fases estén todas vacías pierde la barra entera en vez de mostrar "—", que es lo que sí hace cada fase. Observado en el proyecto 9.
@@ -302,6 +308,9 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 30. `moveTaskToPhase` no es atómica. Pide el código por RPC y después escribe: si el update falla, el código del destino ya quedó quemado. Es la misma no-atomicidad de PostgREST de la deuda 26, ahora también en el movimiento.
 31. `schema.sql` no sólo está desactualizado (deuda 22): **se contradice con la base**. Declara `subtasks.task_id ... ON DELETE CASCADE` en su línea 99, mientras `pg_constraint` mide `NO ACTION`. Reconstruir desde ese archivo haría que borrar una tarea se llevara sus subtareas y dejaría el guard de `deleteProjectTask` de adorno.
 32. El registro del Service Worker falla en dev: `SW registration failed`, dos veces por carga, en toda ruta. El `sw.js` de la Fase 6B no se genera fuera de build. **Sin verificar en Vercel**: si también falla ahí, la PWA está rota en producción.
+33. `allocCode()` en `project-task-actions.ts` tragaba el error del RPC allocator y dejaba que el insert siguiera sin código (deuda 14 original). Cerrado el 28 ago 2026, commit `d8ce79d`: unificado al patrón de abort visible que ya usaban `moveTaskToPhase` y `createPhase`. Necesario para que el gate de rol/membresía de la deuda 24 produzca un error visible en vez de una fila huérfana.
+34. Función de agregación personalizada llamada `array_agg` existe en el esquema `public` y sombrea al agregado nativo de Postgres para cualquier código sin `search_path` explícito (descubierta el 28 ago 2026 al debuggear un error 42809 en una query de auditoría; `pg_get_functiondef()` falla sobre funciones de agregación). Sin investigar origen ni alcance del sombreado.
+35. Observada una vez, no reproducida: la cabecera de la UI mostró la identidad de otro usuario (Johnny Hoyos · Administrador) mientras el JWT de sesión real era jorohoan@gmail.com / developer, durante una corrida de Playwright. Una segunda corrida idéntica mostró la identidad correcta. Posible caché/storage residual de sesión previa en el entorno de prueba, no confirmado como bug de la aplicación.
 
 ---
 
