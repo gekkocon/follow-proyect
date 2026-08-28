@@ -16,6 +16,8 @@ export type ImportTasksPanelMode = 'import' | 'update';
 type Props = {
   projectId: number;
   existingTitles: string[];
+  /** Etapa 1, paso 1D-a — fases del proyecto, para elegir destino. Ignorada en modo 'update'. */
+  phases: { id: number; code: string; name: string }[];
   onClose: () => void;
   onImported: () => void;
   /** 'import' crea filas nuevas; 'update' parchea las existentes por código. */
@@ -196,6 +198,7 @@ function UpdatePreviewBox({ preview }: { preview: UpdatePreview }) {
 export function ImportTasksPanel({
   projectId,
   existingTitles,
+  phases,
   onClose,
   onImported,
   mode = 'import',
@@ -207,6 +210,8 @@ export function ImportTasksPanel({
   const [checking, setChecking] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  // Etapa 1, paso 1D-a — fase destino. Obligatoria en modo 'import'.
+  const [phaseId, setPhaseId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const copy = COPY[mode];
@@ -297,12 +302,27 @@ export function ImportTasksPanel({
       setImportError(error ?? 'JSON inválido');
       return;
     }
-    setImporting(true);
-    setImportError(null);
-
-    const result = isUpdate
-      ? await updateProjectTasks(projectId, payload, createMissing)
-      : await importProjectTasks(projectId, normalizePayloadAliases(payload));
+    // La guarda de la fase va ANTES de marcar el envío en curso: si falta el
+    // destino no hay nada en vuelo que deshacer.
+    //
+    // El if/else reemplaza al ternario porque TypeScript no estrecha `phaseId`
+    // a través de él: el chequeo tiene que vivir dentro de la rama que lo usa.
+    // Así se evita `!` y `as number`, que callarían al compilador en vez de
+    // resolver el caso.
+    let result;
+    if (isUpdate) {
+      setImporting(true);
+      setImportError(null);
+      result = await updateProjectTasks(projectId, payload, createMissing);
+    } else {
+      if (phaseId === null) {
+        setImportError('Elegí una fase destino antes de importar.');
+        return;
+      }
+      setImporting(true);
+      setImportError(null);
+      result = await importProjectTasks(projectId, normalizePayloadAliases(payload), phaseId);
+    }
 
     setImporting(false);
     if (result.error) {
@@ -314,7 +334,7 @@ export function ImportTasksPanel({
 
   const canConfirm = isUpdate
     ? !!updatePreview && !updatePreview.error && updatePreview.blocking.length === 0
-    : !!importPreview && !importPreview.error;
+    : !!importPreview && !importPreview.error && phaseId !== null;
 
   return (
     <>
@@ -348,6 +368,40 @@ export function ImportTasksPanel({
               omitirlas si el proyecto aún no las tiene.
             </p>
           )}
+
+          {/* Etapa 1, paso 1D-a — destino obligatorio. Toda tarea importada
+              nace dentro de una fase; la sobrecarga de 3 argumentos del RPC es
+              la que lo hace. Sólo en modo 'import'. */}
+          {!isUpdate &&
+            (phases.length === 0 ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                Este proyecto todavía no tiene fases. Creá una fase antes de importar.
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Fase destino
+                </label>
+                <select
+                  value={phaseId ?? ''}
+                  onChange={(e) => {
+                    setPhaseId(e.target.value ? Number(e.target.value) : null);
+                    // Mismo tratamiento que el textarea: cambiar el destino
+                    // invalida la vista previa, o se previsualiza contra una
+                    // fase y se confirma contra otra.
+                    resetPreview();
+                  }}
+                  className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent disabled:opacity-50"
+                >
+                  <option value="">Elegí una fase…</option>
+                  {phases.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {`${p.code} · ${p.name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
 
           <div className="flex items-center gap-2">
             <button

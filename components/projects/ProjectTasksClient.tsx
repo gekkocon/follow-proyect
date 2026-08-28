@@ -573,16 +573,19 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
             </button>
           )}
           {!showNewTask && (
-            <button
-              onClick={() => {
-                setShowUpdate(false);
-                setShowImport(true);
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              <Upload size={14} />
-              Importar tareas
-            </button>
+            <span title={!hasPhases ? 'Creá una fase antes de importar tareas.' : undefined}>
+              <button
+                onClick={() => {
+                  setShowUpdate(false);
+                  setShowImport(true);
+                }}
+                disabled={!hasPhases}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Upload size={14} />
+                Importar tareas
+              </button>
+            </span>
           )}
           {!showNewTask && (
             <button
@@ -605,18 +608,30 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
       {workPlan.allTasks.length === 0 && !hasPhases && !showNewTask && !showNewPhase ? (
         <div className="rounded-xl border border-dashed border-border bg-white p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            No hay tareas para este proyecto.{' '}
+            Este proyecto todavía no tiene fases. Toda tarea vive dentro de una fase.
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
             <button
-              onClick={() => setShowNewTask(true)}
-              className="text-primary hover:underline"
+              onClick={() => {
+                setShowImport(false);
+                setShowUpdate(false);
+                setShowNewPhase(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
             >
-              Crear la primera
-            </button>{' '}
-            o{' '}
-            <button onClick={() => setShowImport(true)} className="text-primary hover:underline">
-              importar varias
+              <Plus size={14} />
+              Crear la primera fase
             </button>
-            .
+            <button
+              disabled
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Upload size={14} />
+              Importar varias
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Primero creá una fase para poder importar tareas.
           </p>
         </div>
       ) : (
@@ -676,26 +691,6 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
             />
           )}
 
-          {!hasPhases && !showNewPhase &&
-            (showNewTask ? (
-              <NewTaskRow
-                projectId={projectId}
-                users={users}
-                onSaved={() => {
-                  setShowNewTask(false);
-                  refresh();
-                }}
-                onCancel={() => setShowNewTask(false)}
-              />
-            ) : (
-              <button
-                onClick={() => setShowNewTask(true)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
-              >
-                <Plus size={14} />
-                Nueva tarea
-              </button>
-            ))}
 
           {showNewPhase && (
             <PhaseForm
@@ -717,6 +712,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
           projectId={projectId}
           mode="import"
           existingTitles={workPlan.allTasks.map((t) => t.title)}
+          phases={phaseOptions}
           onClose={() => setShowImport(false)}
           onImported={() => {
             setShowImport(false);
@@ -730,6 +726,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
           projectId={projectId}
           mode="update"
           existingTitles={workPlan.allTasks.map((t) => t.title)}
+          phases={phaseOptions}
           onClose={() => setShowUpdate(false)}
           onImported={() => {
             setShowUpdate(false);

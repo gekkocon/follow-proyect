@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServerClient } from './server';
+import { createAuthServerClient, createServerClient } from './server';
 import { importPayloadSchema, type ImportPayload, type ImportTaskInput, type ImportSubtaskInput } from './import-schema';
 import { updatePayloadSchema, type UpdateItemInput } from './import-schema';
 import { normalizeTaskStatus, normalizeTaskPriority } from '@/src/lib/task-constants';
@@ -110,17 +110,19 @@ export async function previewProjectImport(
  */
 export async function importProjectTasks(
   projectId: number,
-  rawPayload: unknown
+  rawPayload: unknown,
+  phaseId: number
 ): Promise<ImportResult> {
   const { data, error } = parsePayload(rawPayload);
   if (!data) {
     return { error, tasksCreated: 0, subtasksCreated: 0 };
   }
 
-  const supabase = createServerClient();
+  const supabase = await createAuthServerClient();
   const { data: rpcData, error: rpcError } = await supabase.rpc('import_project_tasks', {
     p_project_id: projectId,
     p_tasks: normalizeForRpc(data.tasks),
+    p_phase_id: phaseId,
   });
 
   if (rpcError) {
