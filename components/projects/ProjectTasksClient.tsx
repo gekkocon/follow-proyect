@@ -49,11 +49,11 @@ type NewTaskRowProps = {
   onSaved: () => void;
   onCancel: () => void;
   /**
-   * Etapa 1, paso 1C — when present the task is born inside this phase and its
-   * code comes from the phase counter. Absent keeps the previous behaviour
-   * exactly: an orphan task numbered off the project.
+   * Etapa 1, paso 1F-b — the task is always born inside this phase; its code
+   * comes from the phase counter. `NewTaskRow` only renders inside a real
+   * phase (see the `isPhase` guard in `WorkSection`), so this is never absent.
    */
-  phaseId?: number;
+  phaseId: number;
 };
 
 function NewTaskRow({ projectId, users, onSaved, onCancel, phaseId }: NewTaskRowProps) {
@@ -438,7 +438,7 @@ function WorkSection({
           {/* Pie de fase. Sólo en fases reales: la sección "Sin fase" ya tiene
               su propio botón al pie de la lista y tendría dos que hacen lo
               mismo. Mismo patrón visual que ese botón. */}
-          {isPhase &&
+          {phaseId !== undefined &&
             (showNewTask ? (
               <NewTaskRow
                 projectId={projectId}

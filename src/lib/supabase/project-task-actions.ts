@@ -126,36 +126,25 @@ type TaskInput = {
 };
 
 /**
- * Etapa 1, paso 1C — `phaseId` decides WHICH allocator reserves the code, and
- * the two are not interchangeable:
- *
- *   alloc_task_code_in_phase(p_phase_id) -> 'T01', 'T02' … numbered inside the
- *     phase, off `phases.task_code_seq`.
- *   alloc_task_code(p_project_id) -> the orphan sequence, off the project.
- *
- * Asking the wrong one would hand out a number from the wrong counter and
- * collide with an existing row, so the branch is on `phaseId` being a number,
- * not on it being truthy: phase id 0 does not exist, but reading it as "no
- * phase" is the kind of silent fallback this codebase keeps paying for.
+ * Etapa 1, paso 1F-b — `phaseId` is mandatory: `tasks.phase_id` is `NOT NULL`
+ * since migration 013f, and the orphan allocator (`alloc_task_code`) is
+ * being retired. The code always comes from `alloc_task_code_in_phase`.
  */
 export async function createProjectTask(
   projectId: number,
   data: TaskInput,
   assigneeIds: number[],
-  phaseId?: number | null
+  phaseId: number
 ): Promise<{ id: number | null; error: string | null }> {
   const supabase = createServerClient();
-  const code =
-    typeof phaseId === 'number'
-      ? await allocCode(supabase, 'alloc_task_code_in_phase', { p_phase_id: phaseId })
-      : await allocCode(supabase, 'alloc_task_code', { p_project_id: projectId });
+  const code = await allocCode(supabase, 'alloc_task_code_in_phase', { p_phase_id: phaseId });
 
   const { data: task, error } = await supabase
     .from('tasks')
     .insert({
       ...data,
       project_id: projectId,
-      phase_id: phaseId ?? null,
+      phase_id: phaseId,
       ...(code ? { code } : {}),
     })
     .select('id')
