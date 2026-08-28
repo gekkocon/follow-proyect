@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAdminClient } from './server';
+import { getActiveUser, isGlobalAdmin } from './active-user';
 import type { DbUser } from './types';
 
 export type UserFormValues = {
@@ -50,6 +51,11 @@ export async function fetchUsers(): Promise<{
 export async function createUser(
   values: UserFormValues
 ): Promise<{ error: string | null }> {
+  const activeUser = await getActiveUser();
+  if (!activeUser || !isGlobalAdmin(activeUser)) {
+    return { error: 'No tenés permiso para cambiar roles de usuario.' };
+  }
+
   if (!values.password) {
     return { error: 'La contraseña es requerida para crear un usuario.' };
   }
@@ -177,6 +183,11 @@ export async function updateUserRole(
   id: number,
   role: DbUser['role']
 ): Promise<{ error: string | null }> {
+  const activeUser = await getActiveUser();
+  if (!activeUser || !isGlobalAdmin(activeUser)) {
+    return { error: 'No tenés permiso para cambiar roles de usuario.' };
+  }
+
   const supabase = createServerClient();
   const { error } = await supabase.from('users').update({ role }).eq('id', id);
   if (error) return { error: error.message };
