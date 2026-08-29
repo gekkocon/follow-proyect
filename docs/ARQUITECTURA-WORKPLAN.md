@@ -88,13 +88,15 @@ Los tres niveles tienen conjuntos de campos genuinamente distintos: la fase plan
 
 ### Emergentes: una sola tabla
 
-`work_items` con `type` ∈ `bug | debt | rfc`.
+`work_items` con `type` ∈ `bug | debt | question_rfc`.
 
 Bug, deuda y RFC comparten **12 de sus campos**: proyecto, código, título, descripción, estado, prioridad, responsables, creación, autor, resolución, orden y el vínculo con su origen. Difieren en 6 a 8 campos cada uno.
 
 Tres tablas separadas significarían tres allocators de código, tres archivos de acciones y tres componentes de UI casi idénticos. Una sola tabla es **un allocator, un archivo de acciones y un componente con prop `type`** — que es literalmente la preferencia arquitectónica declarada en `CLAUDE.md` sección 7.
 
 Además habilita gratis la conversión RFC → tarea y bug → deuda, que se pidió, y el "aparecen las tres como pestañas colapsables abajo".
+
+Question/RFC es una única entidad, no dos. Puede nacer como pregunta o duda y evolucionar dentro del mismo registro hasta una evaluación de alternativas y una decisión final. No existe conversión Question → RFC ni un segundo work item: es el mismo registro atravesando estados.
 
 ### Asignaciones: polimórficas
 
@@ -184,14 +186,23 @@ assignments (assignable_type, assignable_id, user_id)
 
 ### `work_items`
 
+Cuatro enums nuevos:
+
+```
+work_item_type      ∈ bug | debt | question_rfc
+work_item_status     ∈ open | in_progress | awaiting_decision | resolved | discarded
+work_item_severity   ∈ minor | major | blocker      (específico de bug)
+work_item_impact     ∈ low | medium | high           (específico de debt)
+```
+
 Campos comunes a los tres tipos:
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | id | bigserial | |
 | project_id | bigint FK | |
-| type | enum | `bug / debt / rfc` |
-| code | text | `BUG-014`, `TD-007`, `RFC-004` — padding 3, contador propio por tipo |
+| type | enum | `bug / debt / question_rfc` |
+| code | text | `BUG-014`, `TD-007`, `QRFC-004` — padding 3, contador propio por tipo |
 | title | text NOT NULL | |
 | description | text | |
 | status | enum | `open / in_progress / awaiting_decision / resolved / discarded` |
@@ -212,7 +223,7 @@ Específicos de **bug**: `severity` (gravedad técnica, distinta de `priority`),
 
 Específicos de **debt**: `impact` (enum), `proposed_solution`, `estimated_effort`, `target_phase_id`.
 
-Específicos de **rfc**: `options`, `recommendation`, `final_decision`.
+Específicos de **question_rfc**: `options`, `recommendation`, `final_decision`.
 
 **Eliminados:** `detected_by` y `detected_at` (son `created_by` y `created_at`), `reproducible` (se deduce de si hay pasos), `reason` y `context` (los cubre `description`), `risk_if_not_resolved` (se superpone con `impact`), `generated_decision_id` (el ADR vive fuera, no hay tabla que referenciar — si hace falta, un campo de texto con la ruta).
 
@@ -226,6 +237,8 @@ Se pidió que un item pueda apuntar a más de un origen, lo que descarta las tre
 work_item_origins (work_item_id, origin_type, origin_id)
 origin_type ∈ phase | task | subtask
 ```
+
+A diferencia de `work_items.type` y `work_items.status`, que son enums Postgres reales, `origin_type` es `TEXT` + `CHECK`, siguiendo el mismo patrón que `assignments.assignable_type` — necesario porque `origin_id` es polimórfico y no puede llevar un FK real.
 
 El vínculo es **opcional**: se aceptó que existan items huérfanos a nivel proyecto.
 
@@ -255,7 +268,7 @@ Se escribe desde los server actions. No se versiona la fila entera, solo el camp
 | Fase | `F0`, `F1` | ninguno | proyecto |
 | Tarea | `T01` | 2 | fase |
 | Subtarea | `S01` | 2 | tarea |
-| Emergentes | `BUG-014`, `TD-007`, `RFC-004` | 3 | proyecto, contador por tipo |
+| Emergentes | `BUG-014`, `TD-007`, `QRFC-004` | 3 | proyecto, contador por tipo |
 
 En base se guarda **solo el sufijo local** (`T08`). El código completo `F3-T08-S02` se compone al mostrar, encadenando los códigos de los padres.
 
@@ -263,7 +276,7 @@ En base se guarda **solo el sufijo local** (`T08`). El código completo `F3-T08-
 
 **Watermarks, todos monotónicos** — nunca decrecen, nunca reutilizan, los códigos borrados quedan quemados:
 
-- `projects`: `phase_code_seq`, `bug_seq`, `debt_seq`, `rfc_seq`
+- `projects`: `phase_code_seq`, `bug_seq`, `debt_seq`, `question_rfc_seq`
 - `phases`: `task_code_seq`
 - `tasks`: `subtask_code_seq`
 
