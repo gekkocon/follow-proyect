@@ -5,12 +5,14 @@ import { format, isPast, parseISO, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createServerClient } from '@/src/lib/supabase/server';
 import { getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
+import { getProjectWorkItems } from '@/src/lib/supabase/work-item-actions';
 import { StatusBadge } from '@/components/projects/StatusBadge';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
 import { ProgressBar } from '@/components/projects/ProgressBar';
 import { EditProjectPanel } from '@/components/projects/EditProjectPanel';
 import { ProjectTasksClient } from '@/components/projects/ProjectTasksClient';
 import { ProjectTeamSection } from '@/components/projects/ProjectTeamSection';
+import { WorkItemsSection } from '@/components/projects/WorkItemsSection';
 import { getProjectMembers } from '@/src/lib/supabase/member-actions';
 import { getActiveUser, canManageTeam } from '@/src/lib/supabase/active-user';
 import type {
@@ -80,14 +82,20 @@ export default async function ProjectDetailPage({
   if (isNaN(id)) notFound();
 
   const activeUser = await getActiveUser();
-  const [project, workPlan, activeUsers, allUsers, members] = await Promise.all([
+  const [project, workPlan, activeUsers, allUsers, members, workItems] = await Promise.all([
     getProject(id),
     getProjectWorkPlan(id),
     getActiveUsers(),
     getAllUsers(),
     getProjectMembers(id),
+    getProjectWorkItems(id),
   ]);
   if (!project) notFound();
+
+  // Etapa 2 — reads straight off workPlan.phases instead of a separate
+  // query: getProjectWorkPlan() already fetched them for the task tree,
+  // and target_phase_id on a debt item only needs id/code/name.
+  const phaseOptions = workPlan.phases.map((p) => ({ id: p.id, code: p.code, name: p.name }));
 
   // Etapa 1, paso 1B — el conteo sigue leyendo la lista PLANA. Leer el árbol
   // devolvería la cantidad de fases, que es un número plausible y equivocado.
@@ -199,6 +207,16 @@ export default async function ProjectDetailPage({
         initialWorkPlan={workPlan}
         users={activeUsers}
         projectId={id}
+      />
+
+      {/* Work items (bugs / deuda técnica / question-RFC) — sibling of
+          ProjectTasksClient, own state and own refresh(). Etapa 2. */}
+      <WorkItemsSection
+        initialWorkItems={workItems}
+        users={activeUsers}
+        phases={phaseOptions}
+        projectId={id}
+        canManage={activeUser ? canManageTeam(activeUser) : false}
       />
     </div>
   );

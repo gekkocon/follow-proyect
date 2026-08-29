@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createAuthServerClient } from '@/src/lib/supabase/server';
+import { createServerClient, createAuthServerClient } from '@/src/lib/supabase/server';
 import { getActiveUser, canManageTeam, isGlobalAdmin } from '@/src/lib/supabase/active-user';
 import { getVisibleProjectIds } from '@/src/lib/supabase/member-actions';
 import {
@@ -10,6 +10,37 @@ import {
   type CreateWorkItemInput,
   type UpdateWorkItemInput,
 } from '@/src/lib/supabase/work-item-schema';
+import type { DbUser, WorkItemWithAssignees } from '@/src/lib/supabase/types';
+
+// -----------------------------------------------------------------
+// syncWorkItemAssignees
+// -----------------------------------------------------------------
+// Same pattern as syncTaskAssignees/syncSubtaskAssignees in
+// project-task-actions.ts, filtered by assignable_type='work_item'.
+// No legacy table to clean up here — work_items is new and never had
+// a work_item_assignees table of its own.
+async function syncWorkItemAssignees(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  workItemId: number,
+  assigneeIds: number[]
+) {
+  await supabase
+    .from('assignments')
+    .delete()
+    .eq('assignable_type', 'work_item')
+    .eq('assignable_id', workItemId);
+
+  if (assigneeIds.length) {
+    await supabase.from('assignments').insert(
+      assigneeIds.map((uid) => ({
+        assignable_type: 'work_item',
+        assignable_id: workItemId,
+        user_id: uid,
+      }))
+    );
+  }
+}
 
 // -----------------------------------------------------------------
 // createWorkItem
@@ -50,7 +81,7 @@ export async function createWorkItem(
     return { error: rpcError?.message ?? 'No se pudo generar el código.' };
   }
 
-  const { origin_type, origin_id, ...fields } = data;
+  const { origin_type, origin_id, assigneeIds, ...fields } = data;
 
   const { data: inserted, error: insertError } = await supabase
     .from('work_items')
@@ -65,6 +96,8 @@ export async function createWorkItem(
   if (insertError || !inserted) {
     return { error: insertError?.message ?? 'No se pudo crear el registro.' };
   }
+
+  await syncWorkItemAssignees(supabase, inserted.id, assigneeIds);
 
   if (origin_type && origin_id) {
     const { error: originError } = await supabase.from('work_item_origins').insert({
@@ -97,7 +130,7 @@ export async function updateWorkItem(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
-  const { id, ...fields } = parsed.data;
+  const { id, assigneeIds, ...fields } = parsed.data;
 
   const activeUser = await getActiveUser();
   if (!activeUser) {
@@ -130,6 +163,8 @@ export async function updateWorkItem(
   if (updateError) {
     return { error: updateError.message };
   }
+
+  await syncWorkItemAssignees(supabase, id, assigneeIds);
 
   revalidatePath(`/projects/${existing.project_id}`);
   return { error: null };
@@ -166,4 +201,45 @@ export async function deleteWorkItem(id: number): Promise<{ error: string | null
 
   revalidatePath(`/projects/${existing.project_id}`);
   return { error: null };
+}
+
+// -----------------------------------------------------------------
+// getProjectWorkItems
+// -----------------------------------------------------------------
+// Read-only, no session needed — same reasoning as getProjectTasksFull:
+// RLS is disabled on work_items (migration 015 never enabled it, same
+// posture as tasks/phases/assignments), so the anon client is enough.
+export async function getProjectWorkItems(projectId: number): Promise<WorkItemWithAssignees[]> {
+  const supabase = createServerClient();
+
+  const { data: items } = await supabase
+    .from('work_items')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true });
+
+  if (!items?.length) return [];
+
+  const itemIds = items.map((i) => i.id);
+
+  const { data: assigneeRows } = await supabase
+    .from('assignments')
+    .select('assignable_id, users(id, name)')
+    .eq('assignable_type', 'work_item')
+    .in('assignable_id', itemIds);
+
+  const assigneesByItem = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (assigneeRows ?? []) as any[]) {
+    const user = row?.users as Pick<DbUser, 'id' | 'name'> | null | undefined;
+    if (!user) continue;
+    const list = assigneesByItem.get(row.assignable_id);
+    if (list) list.push(user);
+    else assigneesByItem.set(row.assignable_id, [user]);
+  }
+
+  return items.map((item) => ({
+    ...item,
+    assignees: assigneesByItem.get(item.id) ?? [],
+  }));
 }

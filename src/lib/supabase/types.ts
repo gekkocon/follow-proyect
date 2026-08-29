@@ -143,6 +143,72 @@ export type TaskWithFullRelations = DbTask & {
   subtasks: SubtaskWithAssignees[];
 };
 
+// Etapa 2 (migración 015): bugs / deuda técnica / question_rfc, unificados
+// en una sola tabla. `type` decide qué campos específicos aplican; los de
+// los otros dos tipos quedan en null. Mismo criterio que DbTask/DbSubtask:
+// una fila plana, no una unión discriminada, porque así vuelve de Supabase.
+export type WorkItemType = 'bug' | 'debt' | 'question_rfc';
+export type WorkItemStatus =
+  | 'open'
+  | 'in_progress'
+  | 'awaiting_decision'
+  | 'resolved'
+  | 'discarded';
+export type WorkItemSeverity = 'minor' | 'major' | 'blocker';
+export type WorkItemImpact = 'low' | 'medium' | 'high';
+
+// Mismo formato que se documentó para subtasks.checklist en
+// ARQUITECTURA-WORKPLAN.md — nunca implementado ahí, primero implementado
+// acá para work_items. Sin reordenar en este ciclo: `order` se asigna una
+// vez al crear el ítem y no se vuelve a tocar.
+export type ChecklistItem = {
+  id: string;
+  text: string;
+  done: boolean;
+  order: number;
+};
+
+export type DbWorkItem = {
+  id: number;
+  project_id: number;
+  type: WorkItemType;
+  code: string;
+  title: string;
+  description: string | null;
+  status: WorkItemStatus;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  created_by: number | null;
+  created_at: string;
+  resolved_at: string | null;
+  sort_order: number;
+  generated_task_id: number | null;
+  checklist: ChecklistItem[];
+
+  // Específicos de bug — null si type !== 'bug'.
+  severity: WorkItemSeverity | null;
+  environment: string | null;
+  version: string | null;
+  reproduction_steps: string | null;
+  expected_behavior: string | null;
+  actual_behavior: string | null;
+  resolution: string | null;
+
+  // Específicos de debt — null si type !== 'debt'.
+  impact: WorkItemImpact | null;
+  proposed_solution: string | null;
+  estimated_effort: string | null;
+  target_phase_id: number | null;
+
+  // Específicos de question_rfc — null si type !== 'question_rfc'.
+  options: string[] | null;
+  recommendation: string | null;
+  final_decision: string | null;
+};
+
+export type WorkItemWithAssignees = DbWorkItem & {
+  assignees: Pick<DbUser, 'id' | 'name'>[];
+};
+
 // Fase 5F: project members
 export type DbProjectMember = {
   id: number;

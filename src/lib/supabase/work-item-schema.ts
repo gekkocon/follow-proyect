@@ -12,6 +12,10 @@ const baseWorkItemSchema = z.object({
   // origins in the DB, but the create form only needs one at a time.
   origin_type: z.enum(['phase', 'task', 'subtask']).optional(),
   origin_id: z.number().int().positive().optional(),
+  // Not a column on work_items — pulled out before the insert/update and
+  // used separately to call syncWorkItemAssignees, same split TaskInput/
+  // SubtaskInput already use for assigneeIds.
+  assigneeIds: z.array(z.number()).optional().default([]),
 });
 
 // -----------------------------------------------------------------
@@ -71,6 +75,19 @@ export const updateWorkItemSchema = z.object({
   options: z.array(z.string()).optional(),
   recommendation: z.string().max(5000).optional(),
   final_decision: z.string().max(5000).optional(),
+  // Same shape as subtasks.checklist in ARQUITECTURA-WORKPLAN.md. The
+  // client always sends the full array — no partial patch of one item.
+  checklist: z
+    .array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        done: z.boolean(),
+        order: z.number(),
+      })
+    )
+    .optional(),
+  assigneeIds: z.array(z.number()).optional().default([]),
 });
 
 export type UpdateWorkItemInput = z.infer<typeof updateWorkItemSchema>;
