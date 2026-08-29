@@ -323,3 +323,4 @@ Una línea cada una. El fundamento completo de las dos últimas está en `docs/C
 1. ~~Arquitectura del Work Plan~~ — **cerrada.** Modelo en `docs/ARQUITECTURA-WORKPLAN.md`; decisiones D-1 a D-20 en `docs/PLAN-SEMILLA-1B.md` y `docs/PLAN-SEMILLA-1C.md`. Tablas separadas para la jerarquía, `assignments` polimórfica, `work_items` única para lo emergente en la Etapa 2.
 2. **`status` / `completed` en subtareas (8B).** Patch estricto con advertencia, sin derivación automática.
 3. **Campos ajenos a la tabla (8B).** `is_blocked` en subtarea, `completed` en tarea: bloquean en vez de advertir.
+4. Nomenclatura de roles — cerrada el 29 ago 2026. UI usa "Project Manager" para el rol pm (antes "Coordinador"). "Colaborador" no existía como resto real en código — developer/designer ya tenían labels propios. Grep de verificación en `docs/PLAN-SEMILLA-1I.md`, sección 3.3.

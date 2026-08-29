@@ -17,7 +17,7 @@ type Props = {
 
 const ROLE_LABELS: Record<DbUser['role'], string> = {
   admin: 'Admin',
-  pm: 'Coordinador',
+  pm: 'Project Manager',
   developer: 'Desarrollador',
   designer: 'Diseñador',
 };

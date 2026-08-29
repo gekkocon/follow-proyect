@@ -22,7 +22,7 @@
 - Lista de proyectos recientes con su progreso
 - Gráfica de distribución de tareas por estado
 - Tareas próximas a vencer en los siguientes 7 días
-- Visibilidad filtrada por rol: Coordinador/Colaborador solo ven datos de sus proyectos; Administrador ve todo
+- Visibilidad filtrada por rol: pm/developer/designer solo ven datos de sus proyectos; admin ve todo
 
 ## 📁 Proyectos
 
