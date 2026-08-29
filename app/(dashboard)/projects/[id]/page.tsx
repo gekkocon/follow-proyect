@@ -171,13 +171,17 @@ export default async function ProjectDetailPage({
             entera vive en projectProgress(), en src/lib/work-plan.ts. */}
         {workPlan.progress !== null && (
           <div className="mt-4">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-              <span>Avance del plan</span>
-              <span>
-                {workPlan.progress.toFixed(1)}% · {tasksDone}/{tasksTotal} tareas finalizadas
-              </span>
+            <div
+              className="flex justify-between text-xs text-muted-foreground mb-1.5"
+              title="Promedio de subtareas completadas por tarea — no es un conteo de tareas."
+            >
+              <span>Avance por subtareas</span>
+              <span>{workPlan.progress.toFixed(1)}%</span>
             </div>
             <ProgressBar done={Math.round(workPlan.progress)} total={100} showLabel={false} />
+            <div className="mt-1.5 text-right text-xs text-muted-foreground">
+              Tareas finalizadas: {tasksDone}/{tasksTotal}
+            </div>
           </div>
         )}
       </div>

@@ -364,7 +364,10 @@ function WorkSection({
               <span className="block text-right text-xs text-muted-foreground">—</span>
             ) : (
               <>
-                <span className="block text-right text-xs text-muted-foreground mb-1">
+                <span
+                  className="block text-right text-xs text-muted-foreground mb-1"
+                  title="Avance por subtareas completadas — no es un conteo de tareas."
+                >
                   {progress.toFixed(1)}%
                 </span>
                 {/* showLabel explícito: el default es true e imprimiría "78/100"
