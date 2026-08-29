@@ -4,7 +4,7 @@ export const TASK_STATUSES: { value: DbTask['status']; label: string }[] = [
   { value: 'todo', label: 'Por hacer' },
   { value: 'in_progress', label: 'En progreso' },
   { value: 'in_review', label: 'En revisión' },
-  { value: 'done', label: 'Finalizada' },
+  { value: 'done', label: 'Completada' },
   { value: 'blocked', label: 'Bloqueada' },
 ];
 

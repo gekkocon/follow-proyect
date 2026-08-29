@@ -1,3 +1,5 @@
+import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
+
 export const USER_ROLES = ['admin', 'pm', 'developer', 'designer'] as const;
 export const USER_STATUS = ['active', 'inactive'] as const;
 export const PROJECT_STATUS = ['planning', 'active', 'on_hold', 'completed', 'overdue'] as const;
@@ -19,20 +21,17 @@ export const PROJECT_STATUS_LABELS: Record<(typeof PROJECT_STATUS)[number], stri
   overdue: 'Atrasado',
 };
 
-export const TASK_STATUS_LABELS: Record<(typeof TASK_STATUS)[number], string> = {
-  todo: 'Por hacer',
-  in_progress: 'En progreso',
-  in_review: 'En revisión',
-  done: 'Completada',
-  blocked: 'Bloqueada',
-};
+export const TASK_STATUS_LABELS: Record<(typeof TASK_STATUS)[number], string> =
+  Object.fromEntries(TASK_STATUSES.map((s) => [s.value, s.label])) as Record<
+    (typeof TASK_STATUS)[number],
+    string
+  >;
 
-export const PRIORITY_LABELS: Record<(typeof PRIORITY_LEVELS)[number], string> = {
-  low: 'Baja',
-  medium: 'Media',
-  high: 'Alta',
-  critical: 'Crítica',
-};
+export const PRIORITY_LABELS: Record<(typeof PRIORITY_LEVELS)[number], string> =
+  Object.fromEntries(TASK_PRIORITIES.map((p) => [p.value, p.label])) as Record<
+    (typeof PRIORITY_LEVELS)[number],
+    string
+  >;
 
 export const USER_STATUS_LABELS: Record<(typeof USER_STATUS)[number], string> = {
   active: 'Activo',
