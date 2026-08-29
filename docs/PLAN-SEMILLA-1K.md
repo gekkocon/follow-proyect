@@ -38,3 +38,29 @@ sesión.
 
     Proyecto follow-proyect — 1K: Etapa 2, bloques emergentes.
     Adjunto PLAN-SEMILLA-1K.md, CLAUDE.md y ARQUITECTURA-WORKPLAN.md.
+
+## 5. Estado al cortar (corte no del todo limpio — SQL sin ejecutar)
+
+Diseño de Etapa 2 cerrado y documentado en ARQUITECTURA-WORKPLAN.md
+(incluye la regla Question/RFC unificada). Migración
+src/lib/supabase/migrations/015_work_items.sql CREADA pero NO
+EJECUTADA contra la base — commit b00c609, pendiente de push al
+arrancar el chat nuevo.
+
+Discrepancia marcada en la sesión anterior sobre el tipo de
+created_by (INTEGER vs BIGINT) queda RESUELTA: information_schema
+confirmó en esta misma sesión que users.id es INTEGER. La migración
+015 tal como está escrita es correcta, no necesita cambios.
+
+Próximo paso al abrir el chat nuevo, en orden:
+  1. Confirmar (git log / git status) que b00c609 sigue siendo el HEAD
+     local y que sigue sin pushear.
+  2. Pushear b00c609 a origin/main.
+  3. Copiar el contenido de 015_work_items.sql al editor SQL de
+     Supabase y ejecutarlo A MANO (Hikashi). Verificar con SELECT
+     contra information_schema que work_items, work_item_origins y
+     los 4 enums se crearon, y que projects tiene las 3 columnas *_seq
+     nuevas.
+  4. Recién después de esa verificación, seguir con el allocator de
+     código (BUG-xxx/TD-xxx/QRFC-xxx) y los server actions de
+     work_items — todavía sin diseñar.
