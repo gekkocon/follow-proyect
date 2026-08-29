@@ -19,11 +19,13 @@ El HEAD lo lee el terminal, no este documento.
 
 ### 2.1 — Drizzle muerto
 
-`src/db/schema.ts`, `connection.ts`, `seed.ts`, carpeta `drizzle/`,
-scripts `db:generate/db:migrate/db:seed` en package.json. Declarado
-muerto en runtime desde el instructivo v2 §2, pero nunca confirmado con
-grep antes de borrar. Objetivo: confirmar cero imports activos, borrar
-archivos y carpeta, limpiar scripts y dependencias de package.json.
+Cerrado antes de esta sesión, en el commit 29dc134 (ver
+docs/CHANGELOG.md, entrada "Eliminado — Drizzle"). src/db/, drizzle/,
+drizzle.config.ts, los cuatro scripts db:* y las cinco dependencias
+huérfanas (drizzle-orm, drizzle-kit, postgres, @libsql/client, tsx)
+ya no existen en el repo. Confirmado por inventario de solo lectura
+el 29 ago 2026: cero carpetas, cero imports, cero menciones en
+package.json. Sin trabajo pendiente.
 
 ### 2.2 — Constantes duplicadas (deuda 4)
 
