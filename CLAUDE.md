@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, 1D completo + 1F-b + 1G completo** (gate de rol/membresía en los tres allocators, deuda 24 y 14 cerradas).
+Última fase cerrada: **Etapa 1, 1D + 1F-b + 1G + 1H completos** (gate de rol/membresía en allocators y en borrados; deudas 24, 14, 17, 18, 19 cerradas; deuda 20/21 sin tocar; hallazgos nuevos 36 abierto, 37 cerrado).
 
 ---
 
@@ -292,9 +292,9 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 14. `allocCode` en `project-task-actions.ts` devuelve `null` si el RPC falla y el insert omite la clave: una fila puede nacer sin código en silencio.
 15. El dashboard mide `tareas done / totales` y el detalle de proyecto mide avance del plan. Para el proyecto 7 son 34 % y 19.8 %. Métricas distintas, etiquetas parecidas.
 16. Ningún camino de borrado registra nada: no hay tabla de log, ni soft delete, ni `deleted_at`, ni columna de autor. Un borrado no deja rastro en la aplicación.
-17. Ningún action de borrado verifica rol. Los tres usan `createServerClient()` (anon key, sin sesión): no saben quién pide el borrado.
-18. `deleteProjectTask` no valida que la tarea pertenezca al `projectId` recibido. Filtra solo por `id`; `projectId` se usa únicamente para `revalidatePath`.
-19. Ningún borrado limpia `assignments`, **salvo `deleteProject` con `force`**, que sí lo hace (project-actions.ts:135-148) y es el único. La tabla no tiene FK sobre `assignable_id` por ser polimórfica, así que la base tampoco lo hace. `syncTaskAssignees` sabe hacerlo y no se llama desde los demás borrados.
+17. ~~Ningún action de borrado verifica rol. Los tres usan `createServerClient()` (anon key, sin sesión): no saben quién pide el borrado.~~ Cerrada el 28 ago 2026: las siete acciones de borrado (`deleteProjectTask`, `deleteProjectSubtask`, `deletePhase`, `removeProjectMember`, `deleteProject`, `deleteUser` — no tres como decía el texto original) gatean rol vía `getActiveUser()` + `canManageTeam()` (operativas) o `isGlobalAdmin()` (proyecto/usuario, más estrictas por ser destructivas a nivel global). Verificado con cuentas reales no-admin (pm y developer) en los seis casos aplicables, en producción: los seis bloquearon con "No autorizado." y el camino permitido (pm en fase/tarea/subtarea/miembro) funcionó sin error. NOTA: el gate vive solo en TypeScript (Camino A), no en RLS/RPC — las tablas de fondo sin RLS real (deuda 1) siguen expuestas a un delete directo vía PostgREST con la anon key para quien la tenga; queda como hueco de fondo, no cerrado por 1H.
+18. `deleteProjectTask` no valida que la tarea pertenezca al `projectId` recibido. Filtra solo por `id`; `projectId` se usa únicamente para `revalidatePath`. Cerrada el 28 ago 2026 para `deleteProjectTask` y `removeProjectMember` (filtro directo por `project_id`) y `deleteProjectSubtask` (resolución en dos pasos vía `task_id` -> `tasks.project_id`, ya que `subtasks` no tiene `project_id` propio).
+19. Ningún borrado limpia `assignments`, **salvo `deleteProject` con `force`**, que sí lo hace (project-actions.ts:135-148) y es el único. La tabla no tiene FK sobre `assignable_id` por ser polimórfica, así que la base tampoco lo hace. `syncTaskAssignees` sabe hacerlo y no se llama desde los demás borrados. Cerrada el 28 ago 2026 para `deleteProjectTask` y `deleteProjectSubtask`, reutilizando `syncTaskAssignees`/`syncSubtaskAssignees` con lista vacía en vez de escribir un delete nuevo.
 20. El handler de borrado de subtarea desestructura `error` y no lo usa: un borrado fallido no muestra nada y ni siquiera refresca. El de tarea sí tiene su `alert`.
 21. `deleteProjectSubtask` revalida solo `/projects/[id]`, no `/dashboard`. El de tarea revalida los dos.
 22. `schema.sql`, declarado fuente de verdad en la §8, no conoce `phases`, ni `assignments`, ni `tasks.phase_id`. Está desactualizado respecto de la 013.
@@ -311,6 +311,8 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 33. `allocCode()` en `project-task-actions.ts` tragaba el error del RPC allocator y dejaba que el insert siguiera sin código (deuda 14 original). Cerrado el 28 ago 2026, commit `d8ce79d`: unificado al patrón de abort visible que ya usaban `moveTaskToPhase` y `createPhase`. Necesario para que el gate de rol/membresía de la deuda 24 produzca un error visible en vez de una fila huérfana.
 34. Función de agregación personalizada llamada `array_agg` existe en el esquema `public` y sombrea al agregado nativo de Postgres para cualquier código sin `search_path` explícito (descubierta el 28 ago 2026 al debuggear un error 42809 en una query de auditoría; `pg_get_functiondef()` falla sobre funciones de agregación). Sin investigar origen ni alcance del sombreado.
 35. Observada una vez, no reproducida: la cabecera de la UI mostró la identidad de otro usuario (Johnny Hoyos · Administrador) mientras el JWT de sesión real era jorohoan@gmail.com / developer, durante una corrida de Playwright. Una segunda corrida idéntica mostró la identidad correcta. Posible caché/storage residual de sesión previa en el entorno de prueba, no confirmado como bug de la aplicación.
+36. Observado durante pruebas de 1H, sin confirmar: la UI de `/projects/[id]` pareció no reflejar un borrado exitoso hasta recargar manualmente. Revisión de código no encontró causa — los tres call sites de borrado (fase/tarea/subtarea) sí llaman al mecanismo de refresh y los `revalidatePath` apuntan correctamente. Requiere reproducción en vivo antes de asumir que es un bug real.
+37. Resuelto el 28 ago 2026 (solo presentación, no la fórmula): el "avance del plan" (% basado en subtareas completadas por tarea) se mostraba concatenado con "tareas finalizadas" (conteo literal de `task.status === 'done'`), dando lecturas contradictorias (ej. "100.0% · 0/1 tareas finalizadas"). Separadas visualmente en `page.tsx` y `ProjectTasksClient.tsx`, con etiquetas y tooltip aclaratorio. Decisión de fondo pendiente, no resuelta acá: si `taskProgress()` debería considerar también el status de la tarea padre, no solo sus subtareas.
 
 ---
 
