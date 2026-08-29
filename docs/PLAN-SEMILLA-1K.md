@@ -48,9 +48,15 @@ EJECUTADA contra la base — commit b00c609, pendiente de push al
 arrancar el chat nuevo.
 
 Discrepancia marcada en la sesión anterior sobre el tipo de
-created_by (INTEGER vs BIGINT) queda RESUELTA: information_schema
-confirmó en esta misma sesión que users.id es INTEGER. La migración
-015 tal como está escrita es correcta, no necesita cambios.
+created_by (INTEGER vs BIGINT) queda RESUELTA — pero fuera de esta
+sesión de Claude Code: Hikashi corrió una consulta contra
+information_schema en el editor SQL de Supabase (dentro del chat de
+Claude.ai, no en esta terminal) que confirmó users.id = integer. La
+migración 015 tal como está escrita es correcta, no necesita
+cambios. Si el próximo chat quiere volver a verificarlo por su
+cuenta, la consulta es:
+    SELECT column_name, data_type FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id';
 
 Próximo paso al abrir el chat nuevo, en orden:
   1. Confirmar (git log / git status) que b00c609 sigue siendo el HEAD
