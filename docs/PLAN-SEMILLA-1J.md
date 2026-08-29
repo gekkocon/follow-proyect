@@ -47,3 +47,17 @@ romper ningún import existente.
 
     Adjunto PLAN-SEMILLA-1J.md y CLAUDE.md. El estado real es el de
     su §1; el HEAD lo leo de mi terminal, no del documento.
+
+## 5. Cierre
+
+Cerrado el 29 ago 2026. Ambos frentes resueltos:
+  - 2.1 (Drizzle): ya estaba cerrado antes de esta sesión (commit
+    29dc134), confirmado por inventario, sin trabajo nuevo.
+  - 2.2 (constantes duplicadas): consolidado en commit 1a84121.
+    task-constants.ts es la fuente única de labels de status/priority
+    de tarea; constants.ts y StatusBadge/PriorityBadge derivan de ahí.
+    Cierra deudas 4 y 28. Validación visual en Prod confirmada por
+    Hikashi: badges correctos en todos los status/priority, 'done'
+    muestra 'Completada' en todas las pantallas.
+
+HEAD final de la sesión: 1a84121, pusheado a origin/main.
