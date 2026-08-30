@@ -145,7 +145,6 @@ export const FIELD_LABELS: Record<string, string> = {
   priority: 'prioridad',
   start_date: 'fecha de inicio',
   due_date: 'fecha límite',
-  estimated_cost: 'costo estimado',
   is_blocked: 'bloqueada',
   blocked_reason: 'motivo de bloqueo',
   completed: 'completada',
@@ -226,11 +225,6 @@ export function diffItem(
     push('start_date', row.start_date, item.start_date);
   if ('due_date' in item && !sameText(item.due_date, row.due_date))
     push('due_date', row.due_date, item.due_date);
-
-  // NUMERIC(12,2) puede volver como string desde PostgREST: comparar como
-  // número, o todo cambio de costo se leería como distinto siempre.
-  if ('estimated_cost' in item && !sameNumber(item.estimated_cost, row.estimated_cost))
-    push('estimated_cost', row.estimated_cost, item.estimated_cost);
 
   if ('is_blocked' in item && item.is_blocked !== row.is_blocked)
     push('is_blocked', row.is_blocked, item.is_blocked);

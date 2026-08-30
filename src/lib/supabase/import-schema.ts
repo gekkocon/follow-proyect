@@ -17,7 +17,6 @@ const baseItemFields = {
   priority: priorityValue,
   start_date: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
-  estimated_cost: z.number().optional().nullable(),
   assignee_names: z.array(z.string()).optional(),
   dependencies: z.array(z.string()).optional(),
 };
@@ -62,7 +61,6 @@ const updatableFields = {
   priority: z.string().optional(),
   start_date: z.string().nullable().optional(),
   due_date: z.string().nullable().optional(),
-  estimated_cost: z.number().nullable().optional(),
   // Sólo tareas — subtasks no tiene estas dos columnas.
   is_blocked: z.boolean().optional(),
   blocked_reason: z.string().nullable().optional(),

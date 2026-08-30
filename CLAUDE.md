@@ -116,12 +116,12 @@ Campos reales — **en inglés**, no en español:
 
 - `projects`: name, description, status, priority, owner_id, start_date, due_date, phase_code_seq
 - `phases`: project_id, code, name, objective, status, priority, start_date, due_date, completed_at, sort_order, task_code_seq
-- `tasks`: title, description, status, priority, project_id, **phase_id**, is_blocked, blocked_reason, start_date, due_date, estimated_cost, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
+- `tasks`: title, description, status, priority, project_id, **phase_id**, is_blocked, blocked_reason, start_date, due_date, dependencies, code, **legacy_code**, **completed_at**, subtask_code_seq
 - `subtasks`: igual + task_id + completed + legacy_code + completed_at; sin is_blocked ni blocked_reason
 - `assignments`: assignable_type (`task | subtask | work_item`), assignable_id, user_id — UNIQUE sobre los tres
 - `project_members`: project_id, user_id, rol_en_proyecto *(TEXT libre, no enum)*
 
-`start_date`, `estimated_cost`, `dependencies` y `subtasks.completed` se eliminan en la 014.
+`start_date`, `dependencies` y `subtasks.completed` se eliminan en la 014.
 
 **`task_status` real:** `todo · in_progress · in_review · done · blocked`. No existe `cancelled` ni `pending`.
 
@@ -283,7 +283,7 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 3. `deleteUser` deja la cuenta de Supabase Auth huérfana.
 4. ~~Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.~~ Cerrada el 29 ago 2026 (1J, frente 2.2): `task-constants.ts` (`TASK_STATUSES`, `TASK_PRIORITIES`) es ahora la fuente única de value/label para status y priority de tarea. `constants.ts` deriva `TASK_STATUS_LABELS` y `PRIORITY_LABELS` desde ahí en vez de tener su propio literal, y `StatusBadge`/`PriorityBadge` también derivan sus labels de las mismas listas, separando el texto del `className` (que sigue hardcodeado porque ninguna lista tiene color). `STATUS_ALIASES`/`PRIORITY_ALIASES`/`normalizeTaskStatus`/`normalizeTaskPriority` de `task-constants.ts` no se tocaron — son el contrato de la importación, no parte de esta consolidación. `USER_ROLE_LABELS`, `PROJECT_STATUS_LABELS` y `USER_STATUS_LABELS` tampoco, porque nunca estuvieron duplicadas.
 5. `TaskRow.tsx`: 910 líneas con tres componentes adentro. Archivo de mayor riesgo del repo.
-6. `estimated_cost` se guarda pero no se totaliza en ninguna vista.
+6. ~~`estimated_cost` se guarda pero no se totaliza en ninguna vista.~~ Cerrada el 30 ago 2026 (1N): en vez de resolverse con totalización, se decidió eliminar el campo por completo (uso mínimo, no justificaba mantenerlo). Sacado de `DbTask`/`DbSubtask` (`types.ts`), de `import-schema.ts` (los dos schemas), de `TaskInput`/`SubtaskInput` (`project-task-actions.ts`) y de `FIELD_LABELS`/`diffItem()` (`update-normalize.ts`). La columna en Postgres queda pendiente de `DROP` — no se tocó SQL en esta sesión, es el paso siguiente tras confirmar el deploy.
 7. `dependencies` se guarda y se resuelve en la importación, pero no se visualiza ni bloquea nada.
 8. `projects.status = 'overdue'` nunca se setea solo. No hay job.
 9. Sin tests de ningún tipo.

@@ -153,7 +153,6 @@ assignments (assignable_type, assignable_id, user_id)
 | start_date / due_date | date | |
 | completed_at | timestamptz | **automático** al pasar a `done` |
 | estimated_hours | numeric | |
-| estimated_cost | numeric | se mantiene, ahora **sí se totaliza** por fase y proyecto |
 | acceptance_criteria | text | |
 | tags | text[] | |
 | dependencies | bigint[] | otras tareas |
@@ -161,7 +160,7 @@ assignments (assignable_type, assignable_id, user_id)
 | created_at | timestamptz | |
 | subtask_code_seq | int default 0 | watermark |
 
-**Eliminados:** `actual_hours` (nadie registra horas sin cronómetro), `complexity` (se superpone con `estimated_hours`), `blockers`, `next_action`, `notes`, `planned_start_date`/`actual_start_date` (cuatro fechas por nivel es exactamente el campo que nadie llena; `start_date` + `due_date` + `completed_at` automático alcanza), `assignee_id` legacy (se elimina antes, ver etapa 0).
+**Eliminados:** `actual_hours` (nadie registra horas sin cronómetro), `complexity` (se superpone con `estimated_hours`), `blockers`, `next_action`, `notes`, `planned_start_date`/`actual_start_date` (cuatro fechas por nivel es exactamente el campo que nadie llena; `start_date` + `due_date` + `completed_at` automático alcanza), `assignee_id` legacy (se elimina antes, ver etapa 0), `estimated_cost` (decisión de sesión 1N: se descarta, uso mínimo — la propuesta original de esta sección de mantenerlo y totalizarlo queda revocada).
 
 ### `subtasks`
 
@@ -354,7 +353,7 @@ Migración SQL, `phases`/`tasks`/`subtasks`/`assignments`, allocators, adaptar l
 `work_items`, `work_item_origins`, UI de las tres pestañas, creación desde la tarea, carga emergente en el dashboard.
 
 **Etapa 3 — el resto.**
-Drag & drop, `activity_log`, `import_work_plan`, totalización de `estimated_cost`.
+Drag & drop, `activity_log`, `import_work_plan`.
 
 `TaskRow.tsx` no se parte antes: partirlo y migrarlo a la vez duplica el riesgo. Se migra tal cual en la etapa 1 y se evalúa después.
 

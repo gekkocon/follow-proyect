@@ -128,7 +128,6 @@ type TaskInput = {
   description?: string | null;
   start_date?: string | null;
   due_date?: string | null;
-  estimated_cost?: number | null;
   is_blocked?: boolean;
   blocked_reason?: string | null;
 };
@@ -327,7 +326,6 @@ type SubtaskInput = {
   description?: string | null;
   start_date?: string | null;
   due_date?: string | null;
-  estimated_cost?: number | null;
 };
 
 export async function createProjectSubtask(
