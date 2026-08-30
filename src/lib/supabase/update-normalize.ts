@@ -143,18 +143,14 @@ export const FIELD_LABELS: Record<string, string> = {
   description: 'descripción',
   status: 'estado',
   priority: 'prioridad',
-  start_date: 'fecha de inicio',
   due_date: 'fecha límite',
   is_blocked: 'bloqueada',
   blocked_reason: 'motivo de bloqueo',
-  completed: 'completada',
   assignees: 'responsables',
 };
 
 /** subtasks no tiene estas columnas. */
 const TASK_ONLY_FIELDS = ['is_blocked', 'blocked_reason'] as const;
-/** tasks no tiene esta columna. */
-const SUBTASK_ONLY_FIELDS = ['completed'] as const;
 
 // ---------------------------------------------------------------------------
 // Comparación
@@ -214,8 +210,6 @@ export function diffItem(
     if (next && next !== row.priority) push('priority', row.priority, next);
   }
 
-  if ('start_date' in item && !sameText(item.start_date, row.start_date))
-    push('start_date', row.start_date, item.start_date);
   if ('due_date' in item && !sameText(item.due_date, row.due_date))
     push('due_date', row.due_date, item.due_date);
 
@@ -223,8 +217,6 @@ export function diffItem(
     push('is_blocked', row.is_blocked, item.is_blocked);
   if ('blocked_reason' in item && !sameText(item.blocked_reason, row.blocked_reason))
     push('blocked_reason', row.blocked_reason, item.blocked_reason);
-  if ('completed' in item && item.completed !== row.completed)
-    push('completed', row.completed, item.completed);
 
   if ('assignees' in item && Array.isArray(item.assignees)) {
     const nextIds = item.assignees
@@ -281,29 +273,6 @@ export function validateItemShape(item: UpdateItemInput, code: string): ItemVali
           `${code}: "${field}" no existe en subtareas y no se puede actualizar.`
         );
       }
-    }
-  } else {
-    for (const field of SUBTASK_ONLY_FIELDS) {
-      if (field in item) {
-        blocking.push(`${code}: "${field}" no existe en tareas y no se puede actualizar.`);
-      }
-    }
-  }
-
-  // Patch estricto: status y completed son columnas independientes y no se
-  // derivan una de la otra. Si el payload mueve una sola, la otra queda como
-  // estaba y la subtarea puede quedar "Finalizada" con el check vacío.
-  if (kind === 'subtask') {
-    const statusIsDone = 'status' in item && resolveStatus(item.status as string) === 'done';
-    if (statusIsDone && !('completed' in item)) {
-      warnings.push(
-        `${code}: manda status "done" sin "completed". El check de la subtarea no se toca.`
-      );
-    }
-    if ('completed' in item && !('status' in item)) {
-      warnings.push(
-        `${code}: manda "completed" sin "status". El estado de la subtarea no se toca.`
-      );
     }
   }
 

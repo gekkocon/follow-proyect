@@ -15,7 +15,6 @@ const baseItemFields = {
   description: z.string().optional().nullable(),
   status: statusValue,
   priority: priorityValue,
-  start_date: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
   assignee_names: z.array(z.string()).optional(),
   dependencies: z.array(z.string()).optional(),
@@ -50,7 +49,7 @@ export type ImportPayload = z.infer<typeof importPayloadSchema>;
 //
 // `null` explícito SÍ se respeta como borrado deliberado, pero sólo en las
 // columnas que admiten NULL. En las NOT NULL (title, status, priority,
-// is_blocked, completed) se rechaza acá para que el error salga legible en la
+// is_blocked) se rechaza acá para que el error salga legible en la
 // vista previa y no como una violación cruda de Postgres al confirmar.
 // ---------------------------------------------------------------------------
 
@@ -59,13 +58,10 @@ const updatableFields = {
   description: z.string().nullable().optional(),
   status: z.string().optional(),
   priority: z.string().optional(),
-  start_date: z.string().nullable().optional(),
   due_date: z.string().nullable().optional(),
   // Sólo tareas — subtasks no tiene estas dos columnas.
   is_blocked: z.boolean().optional(),
   blocked_reason: z.string().nullable().optional(),
-  // Sólo subtareas — tasks no tiene esta columna.
-  completed: z.boolean().optional(),
   // Si la clave viene, reemplaza el set completo de responsables.
   assignees: z.array(z.string()).optional(),
 };

@@ -25,10 +25,12 @@ export type DbProject = {
   updated_at: string;
 };
 
-// Fase 7: start_date, dependencies added for bulk import
+// Fase 7: dependencies added for bulk import
 // Fase 8A: `code` — human-readable identity (F0, F1, …), unique per project.
 // Never renumbered on reorder or delete; burned codes are not reused.
 // Nullable only for rows created before migration 010.
+// Migración 014: start_date eliminada (cero consumidores, ningún
+// formulario la exponía).
 export type DbTask = {
   id: number;
   code: string | null;
@@ -46,7 +48,6 @@ export type DbTask = {
   completed_at: string | null;
   is_blocked: boolean;
   blocked_reason: string | null;
-  start_date: string | null;
   due_date: string | null;
   dependencies: number[];
   created_at: string;
@@ -55,18 +56,19 @@ export type DbTask = {
 
 // Fase 5E: subtasks extended with status and due_date
 // Fase 6B+: priority added
-// Fase 7: description, start_date, dependencies added for bulk import
+// Fase 7: description added for bulk import
 // Fase 8A: `code` — human-readable identity derived from the parent task
 // (F0-T01, F0-T02, …). Same identity/burn rules as DbTask['code'].
+// Migración 014: completed y start_date eliminadas — completed nunca
+// aportaba información propia sobre status (899 subtareas medidas,
+// ninguna divergía); start_date no tenía consumidor en subtareas.
 export type DbSubtask = {
   id: number;
   code: string | null;
   title: string;
   description: string | null;
-  completed: boolean;
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'critical';
-  start_date: string | null;
   due_date: string | null;
   dependencies: number[];
   task_id: number;

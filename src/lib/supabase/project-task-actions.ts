@@ -126,7 +126,6 @@ type TaskInput = {
   status: DbTask['status'];
   priority: DbTask['priority'];
   description?: string | null;
-  start_date?: string | null;
   due_date?: string | null;
   is_blocked?: boolean;
   blocked_reason?: string | null;
@@ -324,7 +323,6 @@ type SubtaskInput = {
   status: DbSubtask['status'];
   priority: DbSubtask['priority'];
   description?: string | null;
-  start_date?: string | null;
   due_date?: string | null;
 };
 
@@ -343,7 +341,6 @@ export async function createProjectSubtask(
     .insert({
       ...data,
       task_id: taskId,
-      completed: data.status === 'done',
       code,
     })
     .select('id')
@@ -364,11 +361,7 @@ export async function updateProjectSubtask(
   assigneeIds: number[]
 ): Promise<{ error: string | null }> {
   const supabase = createServerClient();
-  const updateData = {
-    ...data,
-    ...(data.status !== undefined ? { completed: data.status === 'done' } : {}),
-  };
-  const { error } = await supabase.from('subtasks').update(updateData).eq('id', subtaskId);
+  const { error } = await supabase.from('subtasks').update(data).eq('id', subtaskId);
   if (error) return { error: error.message };
 
   await syncSubtaskAssignees(supabase, subtaskId, assigneeIds);

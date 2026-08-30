@@ -4,7 +4,7 @@ import { getActiveUser, isGlobalAdmin } from '@/src/lib/supabase/active-user';
 import { getVisibleProjectIds } from '@/src/lib/supabase/member-actions';
 import type { TaskWithRelations, DbUser, DbSubtask } from '@/src/lib/supabase/types';
 
-export type SubtaskListItem = Pick<DbSubtask, 'id' | 'title' | 'status' | 'priority' | 'due_date' | 'completed'> & {
+export type SubtaskListItem = Pick<DbSubtask, 'id' | 'title' | 'status' | 'priority' | 'due_date'> & {
   assignees: Pick<DbUser, 'id' | 'name'>[];
 };
 
@@ -54,7 +54,7 @@ async function getTasksData(): Promise<{
     ? await Promise.all([
         supabase
           .from('subtasks')
-          .select('id, title, status, priority, due_date, completed, task_id')
+          .select('id, title, status, priority, due_date, task_id')
           .in('task_id', taskIds),
         // Etapa 1: responsables desde `assignments`. El id de la fila apuntada
         // es `assignable_id`, y el filtro por `assignable_type` no es opcional:
@@ -100,7 +100,6 @@ async function getTasksData(): Promise<{
       status: s.status,
       priority: s.priority,
       due_date: s.due_date,
-      completed: s.completed,
       assignees: assigneesBySubtask.get(s.id) ?? [],
     });
     subtasksByTask.set(s.task_id, list);

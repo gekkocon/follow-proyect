@@ -137,7 +137,7 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh, originCo
   }
 
   async function toggleComplete() {
-    const newStatus: DbSubtask['status'] = subtask.completed ? 'todo' : 'done';
+    const newStatus: DbSubtask['status'] = subtask.status === 'done' ? 'todo' : 'done';
     await updateProjectSubtask(
       subtask.id,
       projectId,
@@ -234,12 +234,12 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh, originCo
         onClick={toggleComplete}
         className={cn(
           'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-          subtask.completed
+          subtask.status === 'done'
             ? 'bg-green-500 border-green-500 text-white'
             : 'border-border bg-white hover:border-primary'
         )}
       >
-        {subtask.completed && (
+        {subtask.status === 'done' && (
           <svg viewBox="0 0 10 10" className="h-2.5 w-2.5">
             <polyline
               points="1.5,5 4,8 8.5,2"
@@ -261,7 +261,7 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh, originCo
         <span
           className={cn(
             'flex items-baseline gap-1.5 min-w-0 text-xs',
-            subtask.completed && 'line-through text-muted-foreground'
+            subtask.status === 'done' && 'line-through text-muted-foreground'
           )}
         >
           {/* Fase 8A — code prefix. stopPropagation so dragging to select it
