@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
@@ -202,9 +202,11 @@ type TaskListProps = {
   onMoved: (destPhaseId: number) => void;
   /** Etapa 2, sesión 1M — how many work items reference each task/subtask. */
   originCounts: Record<string, number>;
+  /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
+  taskStatusById: Record<number, DbTask['status']>;
 };
 
-function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved, originCounts }: TaskListProps) {
+function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved, originCounts, taskStatusById }: TaskListProps) {
   const [showAll, setShowAll] = useState(false);
 
   const hidden = tasks.length - TASKS_VISIBLE_PER_PHASE;
@@ -224,6 +226,7 @@ function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, all
           onRefresh={onRefresh}
           onMoved={onMoved}
           originCounts={originCounts}
+          taskStatusById={taskStatusById}
         />
       ))}
 
@@ -277,6 +280,8 @@ type WorkSectionProps = {
   onMoved: (destPhaseId: number) => void;
   /** Etapa 2, sesión 1M — how many work items reference each task/subtask. */
   originCounts: Record<string, number>;
+  /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
+  taskStatusById: Record<number, DbTask['status']>;
 };
 
 function WorkSection({
@@ -295,6 +300,7 @@ function WorkSection({
   allPhases,
   onMoved,
   originCounts,
+  taskStatusById,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
@@ -442,6 +448,7 @@ function WorkSection({
               allPhases={allPhases}
               onMoved={onMoved}
               originCounts={originCounts}
+              taskStatusById={taskStatusById}
             />
           )}
 
@@ -505,6 +512,16 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
   // derived from `openByDefault`: that one keys off the phase count, and
   // orphan tasks have nothing to do with how many phases exist.
   const [orphansOpen, setOrphansOpen] = useState(false);
+
+  // Migración 014, badge de dependencias sin cerrar (ARQUITECTURA-WORKPLAN.md
+  // §10) — un id de dependencies puede apuntar a cualquier tarea del
+  // proyecto, no solo a las de la misma fase, así que TaskRow no puede
+  // resolverlo con lo que ya tiene: necesita este lookup completo.
+  const taskStatusById = useMemo(() => {
+    const map: Record<number, DbTask['status']> = {};
+    for (const t of workPlan.allTasks) map[t.id] = t.status;
+    return map;
+  }, [workPlan.allTasks]);
 
   const openByDefault = workPlan.phases.length <= PHASES_OPEN_BY_DEFAULT_MAX;
   const isPhaseOpen = (phaseId: number) => phaseOpen[phaseId] ?? openByDefault;
@@ -668,6 +685,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
                   allPhases={phaseOptions}
                   onMoved={handleMoved}
                   originCounts={originCounts}
+                  taskStatusById={taskStatusById}
                 />
               ))}
 
@@ -686,6 +704,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
                   allPhases={phaseOptions}
                   onMoved={handleMoved}
                   originCounts={originCounts}
+                  taskStatusById={taskStatusById}
                 />
               )}
             </>
@@ -703,6 +722,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
               allPhases={phaseOptions}
               onMoved={handleMoved}
               originCounts={originCounts}
+              taskStatusById={taskStatusById}
             />
           )}
 

@@ -17,13 +17,15 @@ const baseItemFields = {
   priority: priorityValue,
   due_date: z.string().optional().nullable(),
   assignee_names: z.array(z.string()).optional(),
-  dependencies: z.array(z.string()).optional(),
 };
 
 export const importSubtaskSchema = z.object(baseItemFields);
 
 export const importTaskSchema = z.object({
   ...baseItemFields,
+  // Migración 014 — dependencies se elimina de subtasks (sin
+  // consumidor); se mantiene solo para tareas.
+  dependencies: z.array(z.string()).optional(),
   subtasks: z.array(importSubtaskSchema).optional(),
 });
 

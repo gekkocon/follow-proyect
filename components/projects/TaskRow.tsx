@@ -501,12 +501,20 @@ type TaskRowProps = {
   onMoved: (destPhaseId: number) => void;
   /** Etapa 2, sesión 1M — how many work items reference each task/subtask, keyed `task:${id}`/`subtask:${id}`. */
   originCounts: Record<string, number>;
+  /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
+  taskStatusById: Record<number, DbTask['status']>;
 };
 
-export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved, originCounts }: TaskRowProps) {
+export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved, originCounts, taskStatusById }: TaskRowProps) {
   const taskCode = composeCode([phaseCode], task.code);
   const setPending = useWorkItemOriginStore((s) => s.setPending);
   const originCount = originCounts[`task:${task.id}`] ?? 0;
+
+  // Migración 014, badge de dependencias sin cerrar (ARQUITECTURA-WORKPLAN.md
+  // §10) — solo visual, sin bloqueo. Mismo criterio del documento: aviso
+  // cuando una tarea in_progress depende de otra que no está done.
+  const openDependencies = task.dependencies.filter((depId) => taskStatusById[depId] !== 'done');
+  const hasOpenDependencies = task.status === 'in_progress' && openDependencies.length > 0;
 
   // C-1 · destinations exclude the task's own phase. For an orphan task
   // `task.phase_id` is null and every phase qualifies. There is no reverse
@@ -858,6 +866,15 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
             <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
               <AlertOctagon size={10} />
               Bloqueada
+            </span>
+          )}
+          {hasOpenDependencies && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+              title="Sin bloqueo — solo aviso"
+            >
+              <AlertOctagon size={10} />
+              Depende de tareas sin cerrar
             </span>
           )}
           <StatusBadge status={task.status} />

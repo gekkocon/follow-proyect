@@ -59,9 +59,10 @@ export type DbTask = {
 // Fase 7: description added for bulk import
 // Fase 8A: `code` — human-readable identity derived from the parent task
 // (F0-T01, F0-T02, …). Same identity/burn rules as DbTask['code'].
-// Migración 014: completed y start_date eliminadas — completed nunca
-// aportaba información propia sobre status (899 subtareas medidas,
-// ninguna divergía); start_date no tenía consumidor en subtareas.
+// Migración 014: completed, start_date y dependencies eliminadas —
+// completed nunca aportaba información propia sobre status (899
+// subtareas medidas, ninguna divergía); start_date y dependencies no
+// tenían consumidor en subtareas (dependencies se mantiene en DbTask).
 export type DbSubtask = {
   id: number;
   code: string | null;
@@ -70,7 +71,6 @@ export type DbSubtask = {
   status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'critical';
   due_date: string | null;
-  dependencies: number[];
   task_id: number;
   // Etapa 1 (migración 013): mismo criterio que en DbTask.
   legacy_code: string | null;

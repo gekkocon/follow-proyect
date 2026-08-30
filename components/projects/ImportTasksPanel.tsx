@@ -365,7 +365,7 @@ export function ImportTasksPanel({
             <p className="text-xs text-muted-foreground">
               Pega un JSON con tareas y subtareas, o carga un archivo <code>.json</code>. La
               fecha (<code>due_date</code>) es opcional — puedes omitirla si el proyecto aún no
-              la tiene.
+              la tiene. <code>dependencies</code> solo es válido en tareas, no en subtareas.
             </p>
           )}
 
