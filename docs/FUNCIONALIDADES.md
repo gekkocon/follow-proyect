@@ -5,7 +5,7 @@
 
 **Stack:** Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui + Supabase (Postgres + Auth) + Zustand + React Hook Form + Zod + date-fns
 
-**Última fase cerrada:** 8B — Actualización masiva de tareas por código
+**Última fase cerrada:** Etapa 2 del Work Plan — bloques emergentes (bugs, deuda técnica, preguntas/RFC) y sus orígenes desde tarea/subtarea.
 
 ---
 
@@ -27,32 +27,45 @@
 ## 📁 Proyectos
 
 - Alta, edición y eliminación de proyectos (nombre, descripción, estado, prioridad, fechas, responsable)
-- Barra de progreso por proyecto (tareas completadas vs. totales)
-- Vista de detalle: tareas y subtareas editables inline, sin ventanas emergentes
+- Barra de progreso por proyecto (promedio de avance de sus fases)
+- Vista de detalle: fases, tareas y subtareas editables inline, sin ventanas emergentes
 - Gestión de equipo por proyecto (asignar/quitar miembros y su rol dentro del proyecto)
 - Múltiples responsables por tarea o subtarea
-- Cada tarea y subtarea tiene un código corto y estable (`F0`, `F0-T01`) para nombrarla fuera de la app
+- Cada fase, tarea y subtarea tiene un código corto y estable, compuesto en tres niveles: `F0` (fase), `F0-T01` (tarea dentro de esa fase), `F0-T01-S01` (subtarea dentro de esa tarea)
 - Carga y actualización masiva de tareas por archivo JSON (ver *Carga masiva de tareas*)
+
+## 🗂️ Fases
+
+Toda tarea vive dentro de una fase — es el primer nivel de organización de un proyecto.
+
+- Alta, edición y eliminación de fases (nombre, objetivo, estado, prioridad, fechas). El código (`F0`, `F1`…) se asigna solo, correlativo dentro del proyecto.
+- Una fase con tareas no se puede eliminar: hay que mover o borrar sus tareas primero. El código de una fase eliminada no se reutiliza.
+- Una tarea se puede mover a otra fase. Al moverla, **el código se realoca**: toma el siguiente número libre de la fase de destino y el código anterior queda quemado en la fase de origen — no se congela ni viaja con la tarea.
+- **Bloque "Sin fase":** una sección aparte, colapsable, para tareas que no pertenecen a ninguna fase (proyectos con tareas anteriores a la existencia de fases, o creadas por la importación masiva — ver más abajo). No entran en el cálculo de avance de ninguna fase individual, pero sí en el avance general del proyecto.
+
+## ✅ Tareas y subtareas
+
+- Dar de alta una tarea a mano exige elegir la fase a la que pertenece — no existe la tarea "suelta" desde el alta manual (a diferencia de la importación, ver más abajo).
+- Las subtareas cuelgan de una tarea, no de una fase directamente.
+- Edición inline en ambos niveles: título, descripción, estado, prioridad, fechas, responsables. Las tareas además admiten marcarse como bloqueadas con un motivo.
 
 ## 📥 Carga masiva de tareas
 
-En el detalle de un proyecto, arriba de la lista de tareas, hay dos botones que trabajan con archivos JSON. Se parecen pero hacen cosas opuestas y **no son intercambiables**:
+En el detalle de un proyecto, arriba de la lista de fases, hay dos botones que trabajan con archivos JSON. Se parecen pero hacen cosas distintas y **no son intercambiables**: **Importar tareas** está activo; **Actualizar tareas** está deshabilitada hoy (ver su sección más abajo).
 
-| | **Importar tareas** | **Actualizar tareas** |
+### Modelo de códigos
+
+Tres niveles, cada uno único dentro de su contenedor:
+
+| Nivel | Formato | Único dentro de |
 |---|---|---|
-| Qué hace | crea filas nuevas | modifica filas existentes |
-| Forma del JSON | objeto anidado, subtareas dentro de su tarea | array plano, un objeto por fila |
-| Cómo identifica la fila | no la identifica: siempre crea | por el código (`F3`, `F3-T08`) |
-| Si el título ya existe | la crea igual, duplicada | no aplica |
-| Puede borrar algo | no | no |
+| Fase | `F0`, `F1`… | proyecto |
+| Tarea | `T01` | fase |
+| Subtarea | `S01` | tarea |
 
-Los dos flujos piden **Vista previa** antes de habilitar la confirmación, y ninguno de los dos escribe nada hasta que se confirma. Cada operación es todo-o-nada: si una fila falla, no se aplica ninguna.
+El código completo que se ve en pantalla es la combinación de los tres: `F0-T01-S01`. Es un **nombre**, no una posición: no cambia si se reordenan las filas dentro de su contenedor, y si una fila se borra su código queda quemado y no se le asigna a ninguna otra.
 
-### Códigos de tarea
-
-Cada tarea tiene un código corto y estable: `F0`, `F1`, `F2`… Cada subtarea lleva el de su tarea más su propio número: `F0-T01`, `F0-T02`… El código es un **nombre**, no una posición: no cambia si se reordenan las tareas, y si una tarea se borra su código queda quemado y no se le asigna a ninguna otra. Sirve para hablar de una tarea fuera de la app y es la llave del flujo de actualización.
-
-Las tareas cargadas antes de que existieran los códigos pueden no tener uno. Esas **no se pueden actualizar por este flujo**, y la vista previa avisa cuántas hay en el proyecto.
+Las tareas cargadas antes de que existieran los códigos pueden no tener uno. Esas **no se pueden alcanzar por código** en ningún flujo que lo use como identificador.
 
 ---
 
@@ -82,90 +95,30 @@ Crea tareas y subtareas nuevas a partir de un JSON anidado. Se puede pegar el te
 - `responsable` / `responsables` funcionan como alias de `assignee_names`.
 - El código se puede indicar con `code`; si no viene, el sistema lo genera solo.
 - La vista previa dice cuántas tareas y subtareas se van a crear, y **avisa si hay títulos repetidos** contra las que ya existen. Es un aviso, no un bloqueo: la importación crea la fila igual.
+- `dependencies` se acepta en el JSON, pero hoy no tiene ningún efecto visible en la app — se guarda y nada más.
+- En un proyecto que ya tiene fases, las tareas importadas **nacen en el bloque "Sin fase"**, a diferencia del alta manual (que siempre exige elegir una fase). Hay que moverlas a mano después si corresponde.
 
 ---
 
 ### Actualizar tareas
 
-Modifica tareas y subtareas que **ya existen**, identificándolas por su código. El JSON es un **array plano**: las subtareas no van anidadas, van como un elemento más de la lista.
+Modificaba tareas y subtareas existentes, identificándolas por su código, sin tocar lo que no se mencionaba en el JSON. **Está deshabilitada hoy**: direccionaba las filas por el código de dos niveles del modelo anterior a las fases (`F3-T08`), que ya no existe bajo el modelo de tres niveles actual. Vuelve en la Etapa 3 como una función nueva (`update_work_plan`), adaptada a fase/tarea/subtarea.
 
-```json
-[
-  { "code": "F3", "status": "En progreso", "priority": "Alta" },
-  { "code": "F3-T08", "title": "Plano eléctrico revisado", "completed": true },
-  { "code": "F4", "assignees": ["Ana Pérez", "Luis Gómez"] },
-  { "code": "F5", "due_date": "2026-04-15", "estimated_cost": 12000 }
-]
-```
+## 🐛 Bloques emergentes
 
-**El guion decide de qué se trata:** un código sin guion (`F3`) es una tarea; uno con guion (`F3-T08`) es una subtarea, y lo que va antes del guion tiene que ser el código de una tarea real del proyecto. Los códigos se pasan a mayúsculas automáticamente, así que `f3` y `F3` son lo mismo.
+Debajo de las fases, en el detalle del proyecto: tres secciones colapsables — **Bugs**, **Deuda Técnica** y **Preguntas/RFC** — para lo que aparece durante el trabajo y no es parte del plan original.
 
-#### Semántica: se escribe solo lo que está presente
-
-Es un *patch*, no un reemplazo. **Solo se modifican los campos que aparecen en el objeto.** Todo lo que no se menciona queda intacto, y nunca se borra nada por omisión. Si se quiere vaciar un campo que admite estar vacío, hay que mandarlo explícitamente en `null`.
-
-En el ejemplo de arriba, `F3` cambia su estado y su prioridad; su título, sus fechas, su costo y sus responsables no se tocan.
-
-#### Qué se puede actualizar
-
-| Campo | Tareas | Subtareas |
-|---|---|---|
-| `title` — título | ✅ | ✅ |
-| `description` — descripción | ✅ | ✅ |
-| `status` — estado | ✅ | ✅ |
-| `priority` — prioridad | ✅ | ✅ |
-| `start_date` — fecha de inicio | ✅ | ✅ |
-| `due_date` — fecha límite | ✅ | ✅ |
-| `estimated_cost` — costo estimado | ✅ | ✅ |
-| `assignees` — responsables | ✅ | ✅ |
-| `is_blocked` — bloqueada | ✅ | ❌ no existe en subtareas |
-| `blocked_reason` — motivo de bloqueo | ✅ | ❌ no existe en subtareas |
-| `completed` — completada | ❌ no existe en tareas | ✅ |
-
-**No se pueden actualizar nunca:** `code`, `id`, `project_id` ni `task_id`. Mandar cualquiera de ellos —o cualquier campo inventado— hace que el archivo se rechace entero.
-
-> **Nota sobre `status` y `completed` en subtareas.** Son dos campos independientes y el sistema **no** deriva uno del otro. Marcar `"status": "done"` sin mandar `"completed": true` deja el estado en "Finalizada" pero el tilde de la subtarea sin marcar. La vista previa lo advierte; si se quieren los dos, hay que mandar los dos.
-
-#### Responsables
-
-- Si la clave `assignees` **no viene**, la lista de responsables no se toca.
-- Si **viene**, reemplaza la lista completa. No agrega: pisa.
-- `"assignees": []` deja la fila sin ningún responsable.
-- Los nombres se buscan por el nombre completo del usuario, sin distinguir mayúsculas ni espacios sobrantes. **Un nombre que no corresponda a ningún usuario bloquea la confirmación** en vez de ignorarse en silencio.
-
-#### La vista previa: cuatro grupos
-
-Antes de confirmar, el panel separa el contenido del archivo en:
-
-1. **A actualizar** — el código existe y hay cambios reales. Se lista campo por campo, con el valor actual y el nuevo.
-2. **Sin cambios** — el código existe pero los valores mandados son idénticos a los que ya tiene. No se toca nada.
-3. **No encontradas** — el código no existe en el proyecto. Se listan los códigos, para poder detectar un error de tipeo.
-4. **Errores** — problemas que impiden confirmar. El botón queda deshabilitado hasta que el archivo se corrija.
-
-Además avisa, sin bloquear, si el proyecto tiene tareas o subtareas **sin código**, indicando cuántas: esas filas no son alcanzables por este flujo.
-
-#### Qué bloquea la confirmación
-
-- Un **código repetido** dentro del mismo archivo.
-- Un **código de subtarea cuyo prefijo** no corresponde a ninguna tarea real del proyecto (por ejemplo `F9-T01` cuando no existe `F9`).
-- Un **estado o prioridad que no se reconoce** (`"En Progeso"`). No se asume un valor por defecto: se frena, porque un valor por defecto convertiría un error de tipeo en un cambio silencioso.
-- Un **responsable inexistente**.
-- Un **campo que no pertenece a esa tabla** (`is_blocked` en una subtarea, `completed` en una tarea) o una clave desconocida.
-- Un **elemento sin `code`**, o con el título vacío.
-- Crear una fila nueva **sin `title`**, cuando el toggle de creación está encendido.
-
-#### Toggle "Crear las no encontradas"
-
-Viene **apagado**, y conviene dejarlo así salvo que se quiera exactamente lo contrario.
-
-- **Apagado:** los códigos que no existen se reportan en la vista previa y se omiten. No se crea nada.
-- **Encendido:** esos códigos se crean como filas nuevas, con el código indicado en el archivo.
-
-El motivo del valor por defecto: si `F30` está mal tipeado y en realidad era `F3`, con el toggle apagado aparece en "no encontradas" y se corrige; con el toggle encendido se convierte, sin decir nada, en una tarea nueva llamada `F30`.
-
-#### Después de confirmar
-
-El sistema informa cuántas filas se actualizaron, cuántas se crearon y cuántas se omitieron. **El total de "actualizadas" incluye también las que no cambiaron**: es la cantidad de filas alcanzadas, no la cantidad de campos modificados. El desglose fino está en la vista previa, antes de confirmar.
+- **Alta independiente**, desde el botón de cada sección ("Nuevo bug", "Nueva deuda técnica", "Nueva pregunta/RFC"), sin origen asociado.
+- **Alta con origen prellenado**: desde una tarea o una subtarea hay un menú ("Reportar bug" / "Registrar deuda técnica" / "Abrir pregunta/RFC") que abre el formulario de alta en la sección correspondiente, con el código de esa tarea o subtarea ya cargado como origen (visible como una etiqueta fija mientras se completa el alta). El origen solo puede ser una tarea o una subtarea — no una fase.
+- Cada ítem tiene su propio código: `BUG-014`, `TD-007`, `QRFC-004`.
+- **Campos comunes:** título, descripción, prioridad (baja/media/alta/crítica), estado (abierto / en progreso / esperando decisión / resuelto / descartado, visible al editar), responsables (mismo selector múltiple que tareas y subtareas).
+- **Campos propios de un bug:** severidad (menor/mayor/bloqueante), entorno, versión, pasos para reproducir, comportamiento esperado, comportamiento real, resolución.
+- **Campos propios de una deuda técnica:** impacto (bajo/medio/alto), solución propuesta, esfuerzo estimado, fase objetivo (opcional).
+- **Campos propios de una pregunta/RFC:** opciones a evaluar, recomendación, decisión final.
+- **Checklist interno** por ítem: agregar, tildar y borrar pasos menores. No se pueden reordenar todavía.
+- **Contador de vínculos:** una tarea o subtarea con bugs, deuda o preguntas vinculados muestra "· N emergente(s)" junto a su código.
+- **Editar orígenes** de un ítem ya creado: en modo edición se ven sus orígenes actuales y se pueden agregar o quitar vínculos a otras tareas o subtareas del proyecto.
+- **Eliminar** un ítem solo está disponible para Administrador o Project Manager.
 
 ## ✅ Tareas (vista global)
 
@@ -212,5 +165,4 @@ El sistema informa cuántas filas se actualizaron, cuántas se crearon y cuánta
 
 - Subida de archivos real para logo/favicon (hoy solo se aceptan URLs externas)
 - Migración `favicon_url` en `brand_settings` debe ejecutarse manualmente en Supabase si aún no se corrió
-- Migraciones `010_task_codes.sql` (códigos) y `011_update_project_tasks.sql` (actualización masiva) también se ejecutan **a mano** en Supabase, **una sola vez**: hay un único proyecto Supabase, no hay entorno de ensayo separado. Sin la 010 falla la importación; sin la 011 la actualización deja ver la vista previa pero falla al confirmar
 - Confirmar en Supabase Auth los Redirect URLs del dominio de producción tras cada nuevo deploy
