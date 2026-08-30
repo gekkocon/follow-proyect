@@ -171,13 +171,6 @@ function sameText(a: unknown, b: unknown): boolean {
   return left === right;
 }
 
-function sameNumber(a: unknown, b: unknown): boolean {
-  const left = a === null || a === undefined || a === '' ? null : Number(a);
-  const right = b === null || b === undefined || b === '' ? null : Number(b);
-  if (left === null || right === null) return left === right;
-  return left === right;
-}
-
 export type ResolvedUser = Pick<DbUser, 'id' | 'name'>;
 
 /** Mismo criterio que la función SQL: lower(trim(name)) contra lower(trim(input)). */
