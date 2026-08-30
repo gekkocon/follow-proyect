@@ -82,8 +82,6 @@ usan `updateWorkItem`/`deleteProjectTask`.
   sesión.
 - **Etapa 3 completa**: drag & drop (fases y tareas), `activity_log`,
   `import_work_plan`, totalización de `estimated_cost`.
-- **`scripts/`** — sigue sin trackear en el repo, sin decisión tomada
-  sobre si entra versionado o queda fuera vía `.gitignore`.
 
 ## 5. Primer paso del chat nuevo
 
