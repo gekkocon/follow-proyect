@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 1, 1D + 1F-b + 1G + 1H + 1I completos** (gate de rol/membresía en allocators y en borrados; deudas 24, 14, 17, 18, 19, 34, 37 cerradas; hallazgo 36 cerrado como no reproducido; nomenclatura de roles cerrada — item 4 de la §10).
+Última fase cerrada: **Etapa 2, 1L completo** — UI de bloques emergentes (WorkItemRow, WorkItemsSection, checklist inline, asignados, wiring en `page.tsx`), verificada en vivo: RLS confirmada deshabilitada en `work_items`/`work_item_origins`, smoke test de 7 pasos sin discrepancias, incluido el gate de borrado probado con cuenta developer real. Commit `6be42bf` en `origin/main`.
 
 ---
 
@@ -276,7 +276,7 @@ atendió un solo request desde que arrancó; si el log muestra
 
 Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 
-1. La postura de RLS es **mixta**: `users`, `projects`, `tasks`, `subtasks`, `phases` y `assignments` la tienen **deshabilitada**; `brand_settings`, `project_members` y las dos tablas de asignados la tienen habilitada con una política `allow_all`. Toda la seguridad real es de aplicación.
+1. La postura de RLS es **mixta**: `users`, `projects`, `tasks`, `subtasks`, `phases`, `assignments`, `work_items` y `work_item_origins` la tienen **deshabilitada** (confirmado por SELECT directo contra `pg_class` el 29 ago 2026: `relrowsecurity = false` en las dos últimas); `brand_settings`, `project_members` y las dos tablas de asignados la tienen habilitada con una política `allow_all`. Toda la seguridad real es de aplicación.
 2. `/users` y `/settings` se protegen solo contra "no logueado", **no por rol**. La ocultación por rol es visual.
 3. `deleteUser` deja la cuenta de Supabase Auth huérfana.
 4. ~~Doble lista de etiquetas en `constants.ts` y `task-constants.ts`. Agregar un estado obliga a tocar enum + 2 archivos + `types.ts` + StatusBadge/PriorityBadge.~~ Cerrada el 29 ago 2026 (1J, frente 2.2): `task-constants.ts` (`TASK_STATUSES`, `TASK_PRIORITIES`) es ahora la fuente única de value/label para status y priority de tarea. `constants.ts` deriva `TASK_STATUS_LABELS` y `PRIORITY_LABELS` desde ahí en vez de tener su propio literal, y `StatusBadge`/`PriorityBadge` también derivan sus labels de las mismas listas, separando el texto del `className` (que sigue hardcodeado porque ninguna lista tiene color). `STATUS_ALIASES`/`PRIORITY_ALIASES`/`normalizeTaskStatus`/`normalizeTaskPriority` de `task-constants.ts` no se tocaron — son el contrato de la importación, no parte de esta consolidación. `USER_ROLE_LABELS`, `PROJECT_STATUS_LABELS` y `USER_STATUS_LABELS` tampoco, porque nunca estuvieron duplicadas.
