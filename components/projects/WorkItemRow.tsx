@@ -506,6 +506,17 @@ export function WorkItemRow({
             </span>
           </div>
         )}
+        {!isNew && editing && item && (
+          <div className="px-4 pt-2.5">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Orígenes</p>
+            <OriginEditor
+              workItemId={item.id}
+              origins={item.origins}
+              originOptions={originOptions}
+              onRefresh={onRefresh}
+            />
+          </div>
+        )}
         <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
           <input
             autoFocus
