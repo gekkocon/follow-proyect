@@ -229,6 +229,10 @@ Comparten el directorio `.next`. El build de producción pisa los artefactos de 
 El síntoma engaña: se ve como un fallo del código recién escrito cuando no lo es.
 Salida: frenar el dev server, `rm -rf .next`, levantar de nuevo.
 
+### `tsc --noEmit` no alcanza para verificar un refactor que borra código
+
+`npx tsc --noEmit` no detecta código que queda sin uso tras un refactor (ej. una función huérfana). `next build` sí lo hace, porque corre ESLint además de tsc, y `@typescript-eslint/no-unused-vars` es error de compilación ahí, no warning. Cualquier cambio que borre código debe verificarse con `npm run build` completo antes de darse por cerrado — `tsc --noEmit` solo no alcanza. (Causa real de un deploy roto en la sesión 1N: `sameNumber()` en `update-normalize.ts`.)
+
 ### Las verificaciones tienen que devolver filas, y con la llave correcta
 
 El editor SQL de Supabase **no muestra `RAISE NOTICE` ni `RAISE WARNING`**: una migración que verifica con NOTICE devuelve "Success. No rows returned" tanto si pasó como si no verificó nada. Toda verificación que tenga que leer un humano va en un `SELECT` aparte.
