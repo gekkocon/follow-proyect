@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **Etapa 2, 1L completo** — UI de bloques emergentes (WorkItemRow, WorkItemsSection, checklist inline, asignados, wiring en `page.tsx`), verificada en vivo: RLS confirmada deshabilitada en `work_items`/`work_item_origins`, smoke test de 7 pasos sin discrepancias, incluido el gate de borrado probado con cuenta developer real. Commit `6be42bf` en `origin/main`.
+Última fase cerrada: **Etapa 2, 1M completo** — UI de work_item_origins: crear bug/deuda/pregunta-RFC desde tarea o subtarea con origen prellenado (store workItemOriginStore), contador de emergentes vinculados en TaskRow/SubtaskRow, edición de orígenes (agregar/quitar) desde WorkItemRow. Incluye fix post-verificación: OriginEditor no se montaba en modo edición de item existente (commit ce51d92). Verificado en vivo, smoke test de 9 pasos sin discrepancias tras el fix, incluido el gate de autorización probado con cuenta developer real (jorohoan@gmail.com). Commit `ce51d92` en `origin/main`.
 
 ---
 
