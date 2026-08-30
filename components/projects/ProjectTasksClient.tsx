@@ -200,9 +200,11 @@ type TaskListProps = {
   onRefresh: () => void;
   allPhases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
   onMoved: (destPhaseId: number) => void;
+  /** Etapa 2, sesión 1M — how many work items reference each task/subtask. */
+  originCounts: Record<string, number>;
 };
 
-function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved }: TaskListProps) {
+function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved, originCounts }: TaskListProps) {
   const [showAll, setShowAll] = useState(false);
 
   const hidden = tasks.length - TASKS_VISIBLE_PER_PHASE;
@@ -221,6 +223,7 @@ function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, all
           onDelete={onDelete}
           onRefresh={onRefresh}
           onMoved={onMoved}
+          originCounts={originCounts}
         />
       ))}
 
@@ -272,6 +275,8 @@ type WorkSectionProps = {
   phase?: PhaseWithTasks;
   allPhases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
   onMoved: (destPhaseId: number) => void;
+  /** Etapa 2, sesión 1M — how many work items reference each task/subtask. */
+  originCounts: Record<string, number>;
 };
 
 function WorkSection({
@@ -289,6 +294,7 @@ function WorkSection({
   phase,
   allPhases,
   onMoved,
+  originCounts,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
@@ -435,6 +441,7 @@ function WorkSection({
               onRefresh={onRefresh}
               allPhases={allPhases}
               onMoved={onMoved}
+              originCounts={originCounts}
             />
           )}
 
@@ -476,9 +483,11 @@ type Props = {
   initialWorkPlan: ProjectWorkPlan;
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
+  /** Etapa 2, sesión 1M — how many work items reference each task/subtask, keyed `task:${id}`/`subtask:${id}`. */
+  originCounts: Record<string, number>;
 };
 
-export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props) {
+export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCounts }: Props) {
   const [workPlan, setWorkPlan] = useState<ProjectWorkPlan>(initialWorkPlan);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -658,6 +667,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   onRefresh={refresh}
                   allPhases={phaseOptions}
                   onMoved={handleMoved}
+                  originCounts={originCounts}
                 />
               ))}
 
@@ -675,6 +685,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
                   onRefresh={refresh}
                   allPhases={phaseOptions}
                   onMoved={handleMoved}
+                  originCounts={originCounts}
                 />
               )}
             </>
@@ -691,6 +702,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId }: Props)
               onRefresh={refresh}
               allPhases={phaseOptions}
               onMoved={handleMoved}
+              originCounts={originCounts}
             />
           )}
 

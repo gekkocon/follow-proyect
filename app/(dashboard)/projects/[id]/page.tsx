@@ -5,6 +5,7 @@ import { format, isPast, parseISO, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createServerClient } from '@/src/lib/supabase/server';
 import { getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
+import { buildOriginOptions } from '@/src/lib/work-plan';
 import { getProjectWorkItems } from '@/src/lib/supabase/work-item-actions';
 import { StatusBadge } from '@/components/projects/StatusBadge';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
@@ -82,20 +83,25 @@ export default async function ProjectDetailPage({
   if (isNaN(id)) notFound();
 
   const activeUser = await getActiveUser();
-  const [project, workPlan, activeUsers, allUsers, members, workItems] = await Promise.all([
-    getProject(id),
-    getProjectWorkPlan(id),
-    getActiveUsers(),
-    getAllUsers(),
-    getProjectMembers(id),
-    getProjectWorkItems(id),
-  ]);
+  const [project, workPlan, activeUsers, allUsers, members, { items: workItems, originCounts }] =
+    await Promise.all([
+      getProject(id),
+      getProjectWorkPlan(id),
+      getActiveUsers(),
+      getAllUsers(),
+      getProjectMembers(id),
+      getProjectWorkItems(id),
+    ]);
   if (!project) notFound();
 
   // Etapa 2 — reads straight off workPlan.phases instead of a separate
   // query: getProjectWorkPlan() already fetched them for the task tree,
   // and target_phase_id on a debt item only needs id/code/name.
   const phaseOptions = workPlan.phases.map((p) => ({ id: p.id, code: p.code, name: p.name }));
+
+  // Etapa 2, sesión 1M — same criterion: derived from workPlan, no new
+  // query. Feeds the origin editor/combobox in WorkItemRow.
+  const originOptions = buildOriginOptions(workPlan);
 
   // Etapa 1, paso 1B — el conteo sigue leyendo la lista PLANA. Leer el árbol
   // devolvería la cantidad de fases, que es un número plausible y equivocado.
@@ -207,6 +213,7 @@ export default async function ProjectDetailPage({
         initialWorkPlan={workPlan}
         users={activeUsers}
         projectId={id}
+        originCounts={originCounts}
       />
 
       {/* Work items (bugs / deuda técnica / question-RFC) — sibling of
@@ -215,6 +222,7 @@ export default async function ProjectDetailPage({
         initialWorkItems={workItems}
         users={activeUsers}
         phases={phaseOptions}
+        originOptions={originOptions}
         projectId={id}
         canManage={activeUser ? canManageTeam(activeUser) : false}
       />

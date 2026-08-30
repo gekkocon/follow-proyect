@@ -30,10 +30,12 @@ Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Co
 | Backend/API | Supabase (server actions, sin API routes) |
 | Cliente BD | @supabase/supabase-js |
 | Auth | Supabase Auth (email + password, sin registro público) |
-| Estado global | Zustand (3 stores) |
+| Estado global | Zustand (4 stores) |
 | Formularios | React Hook Form |
 | Validación | Zod |
 | Fechas | date-fns, locale `es` |
+
+El cuarto store, `workItemOriginStore` (Etapa 2, sesión 1M), es estado efímero de UI: prellena el origen (tarea o subtarea) al crear un bug/deuda/pregunta desde `RowActionMenu`, y se limpia al crear el item, cancelar el formulario o cerrarlo. Sin `persist` — se pierde en cada refresh y está bien así.
 
 **Prohibido sin justificación previa y aprobada:** SQLite, Drizzle ORM, Prisma, cualquier otro ORM, React Query, librerías de charts.
 
@@ -313,6 +315,9 @@ Tenerla presente para no romper nada ni "arreglar" algo que es intencional.
 35. Observada una vez, no reproducida: la cabecera de la UI mostró la identidad de otro usuario (Johnny Hoyos · Administrador) mientras el JWT de sesión real era jorohoan@gmail.com / developer, durante una corrida de Playwright. Una segunda corrida idéntica mostró la identidad correcta. Posible caché/storage residual de sesión previa en el entorno de prueba, no confirmado como bug de la aplicación.
 36. ~~Observado durante pruebas de 1H, sin confirmar: la UI de `/projects/[id]` pareció no reflejar un borrado exitoso hasta recargar manualmente.~~ Cerrado el 29 ago 2026, no reproducido: prueba manual en navegador real contra producción (Vercel), creando un proyecto con fase → tarea → subtarea y borrando cada nivel uno por uno. En los tres casos la fila desapareció sola, sin recargar. Revisión de código en 1I tampoco había encontrado causa (los tres call sites de borrado llaman al mecanismo de refresh y los `revalidatePath` apuntan a la ruta correcta). Conclusión: el síntoma original fue probablemente un artefacto del entorno de Playwright de la sesión 1H, no un bug de la aplicación.
 37. Resuelto el 28 ago 2026 (solo presentación, no la fórmula): el "avance del plan" (% basado en subtareas completadas por tarea) se mostraba concatenado con "tareas finalizadas" (conteo literal de `task.status === 'done'`), dando lecturas contradictorias (ej. "100.0% · 0/1 tareas finalizadas"). Separadas visualmente en `page.tsx` y `ProjectTasksClient.tsx`, con etiquetas y tooltip aclaratorio. Decisión de fondo pendiente, no resuelta acá: si `taskProgress()` debería considerar también el status de la tarea padre, no solo sus subtareas.
+38. El origen de un work item (`work_item_origins`) solo admite `task`/`subtask` desde la UI (`workItemOriginStore`, `RowActionMenu`), aunque la tabla soporte `phase` a nivel de datos. Es una restricción de producto tomada en chat en la sesión 1M, no una limitación técnica — un origen `phase` solo puede existir hoy si se inserta a mano o por otro camino fuera de esta UI.
+39. Patrón de menú-portal duplicado entre `TaskRow` (mover fase, líneas ~428-556 de `TaskRow.tsx`) y `RowActionMenu` (origen de emergentes, sesión 1M): son casi el mismo código — trigger con `ref`, `createPortal` a `document.body`, posicionamiento por `getBoundingClientRect`, cierre por click afuera + Escape + scroll/resize — escrito dos veces porque refactorizar el menú de mover fase (que ya funciona en producción) quedó deliberadamente fuera de la sesión 1M para no mezclar ese riesgo con la tarea de orígenes. Candidato a unificar cuando se toque `TaskRow.tsx` a fondo.
+40. originCounts en TaskRow/SubtaskRow se calcula una sola vez en el fetch inicial de page.tsx. Si desde WorkItemsSection se agrega o quita un origen (addWorkItemOrigin/removeWorkItemOrigin), el contador visual no se actualiza hasta un refresh completo de la página — ProjectTasksClient y WorkItemsSection son hermanos con estado independiente por decisión H de 1L, y ninguno de los dos revalida el estado del otro. No es un bug: es el costo aceptado de mantener los dos módulos desacoplados.
 
 ---
 

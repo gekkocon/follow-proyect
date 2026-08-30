@@ -10,7 +10,7 @@ import {
   type CreateWorkItemInput,
   type UpdateWorkItemInput,
 } from '@/src/lib/supabase/work-item-schema';
-import type { DbUser, WorkItemWithAssignees } from '@/src/lib/supabase/types';
+import type { DbUser, WorkItemWithOrigins, WorkItemOriginType } from '@/src/lib/supabase/types';
 
 // -----------------------------------------------------------------
 // syncWorkItemAssignees
@@ -209,7 +209,19 @@ export async function deleteWorkItem(id: number): Promise<{ error: string | null
 // Read-only, no session needed — same reasoning as getProjectTasksFull:
 // RLS is disabled on work_items (migration 015 never enabled it, same
 // posture as tasks/phases/assignments), so the anon client is enough.
-export async function getProjectWorkItems(projectId: number): Promise<WorkItemWithAssignees[]> {
+//
+// Etapa 2, sesión 1M — return shape changed from a bare array to
+// { items, originCounts }: originCounts is aggregate data (how many
+// items reference a given task/subtask), it cannot live per-item. Both
+// call sites (page.tsx, WorkItemsSection.refresh()) were updated for
+// this. Each item's `origins` carries the raw rows (including each
+// row's own id, required by removeWorkItemOrigin) — the human-readable
+// label is composed once on the client, against `originOptions`, not
+// duplicated here.
+export async function getProjectWorkItems(projectId: number): Promise<{
+  items: WorkItemWithOrigins[];
+  originCounts: Record<string, number>;
+}> {
   const supabase = createServerClient();
 
   const { data: items } = await supabase
@@ -218,15 +230,21 @@ export async function getProjectWorkItems(projectId: number): Promise<WorkItemWi
     .eq('project_id', projectId)
     .order('created_at', { ascending: true });
 
-  if (!items?.length) return [];
+  if (!items?.length) return { items: [], originCounts: {} };
 
   const itemIds = items.map((i) => i.id);
 
-  const { data: assigneeRows } = await supabase
-    .from('assignments')
-    .select('assignable_id, users(id, name)')
-    .eq('assignable_type', 'work_item')
-    .in('assignable_id', itemIds);
+  const [{ data: assigneeRows }, { data: originRows }] = await Promise.all([
+    supabase
+      .from('assignments')
+      .select('assignable_id, users(id, name)')
+      .eq('assignable_type', 'work_item')
+      .in('assignable_id', itemIds),
+    supabase
+      .from('work_item_origins')
+      .select('id, work_item_id, origin_type, origin_id')
+      .in('work_item_id', itemIds),
+  ]);
 
   const assigneesByItem = new Map<number, Pick<DbUser, 'id' | 'name'>[]>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,8 +256,152 @@ export async function getProjectWorkItems(projectId: number): Promise<WorkItemWi
     else assigneesByItem.set(row.assignable_id, [user]);
   }
 
-  return items.map((item) => ({
+  type OriginRow = { id: number; origin_type: WorkItemOriginType; origin_id: number };
+  const originsByItem = new Map<number, OriginRow[]>();
+  const originCounts: Record<string, number> = {};
+  for (const row of originRows ?? []) {
+    const entry: OriginRow = { id: row.id, origin_type: row.origin_type, origin_id: row.origin_id };
+    const list = originsByItem.get(row.work_item_id);
+    if (list) list.push(entry);
+    else originsByItem.set(row.work_item_id, [entry]);
+
+    const key = `${row.origin_type}:${row.origin_id}`;
+    originCounts[key] = (originCounts[key] ?? 0) + 1;
+  }
+
+  const withRelations: WorkItemWithOrigins[] = items.map((item) => ({
     ...item,
     assignees: assigneesByItem.get(item.id) ?? [],
+    origins: originsByItem.get(item.id) ?? [],
   }));
+
+  return { items: withRelations, originCounts };
+}
+
+// -----------------------------------------------------------------
+// addWorkItemOrigin / removeWorkItemOrigin
+// -----------------------------------------------------------------
+// Same gate as updateWorkItem — any project member. No new
+// authorization helper: reuses getVisibleProjectIds() exactly like
+// updateWorkItem does, for the same "one source of truth" reason
+// (deuda 4 lesson, already cited there).
+export async function addWorkItemOrigin(
+  workItemId: number,
+  originType: 'task' | 'subtask',
+  originId: number
+): Promise<{ error: string | null }> {
+  const activeUser = await getActiveUser();
+  if (!activeUser) {
+    return { error: 'No autorizado.' };
+  }
+
+  const supabase = await createAuthServerClient();
+
+  const { data: workItem, error: workItemError } = await supabase
+    .from('work_items')
+    .select('project_id')
+    .eq('id', workItemId)
+    .maybeSingle();
+
+  if (workItemError || !workItem) {
+    return { error: 'Work item no encontrado.' };
+  }
+
+  const visibleIds = await getVisibleProjectIds(activeUser.id, isGlobalAdmin(activeUser));
+  const isMember = visibleIds === null || visibleIds.includes(workItem.project_id);
+  if (!isMember) {
+    return { error: 'No autorizado.' };
+  }
+
+  // Resolve the origin's own project_id to confirm it belongs to the same
+  // project as the work item. Subtasks have no project_id column of
+  // their own — same two-step lookup deleteProjectSubtask already uses
+  // via task_id -> tasks.project_id.
+  let originProjectId: number | null = null;
+  if (originType === 'task') {
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('project_id')
+      .eq('id', originId)
+      .maybeSingle();
+    originProjectId = task?.project_id ?? null;
+  } else {
+    const { data: subtask } = await supabase
+      .from('subtasks')
+      .select('task_id')
+      .eq('id', originId)
+      .maybeSingle();
+    if (subtask) {
+      const { data: parentTask } = await supabase
+        .from('tasks')
+        .select('project_id')
+        .eq('id', subtask.task_id)
+        .maybeSingle();
+      originProjectId = parentTask?.project_id ?? null;
+    }
+  }
+
+  if (originProjectId === null || originProjectId !== workItem.project_id) {
+    return { error: 'El origen no pertenece a este proyecto.' };
+  }
+
+  const { error: insertError } = await supabase.from('work_item_origins').insert({
+    work_item_id: workItemId,
+    origin_type: originType,
+    origin_id: originId,
+  });
+
+  if (insertError) {
+    return { error: insertError.message };
+  }
+
+  revalidatePath(`/projects/${workItem.project_id}`);
+  return { error: null };
+}
+
+export async function removeWorkItemOrigin(workItemOriginId: number): Promise<{ error: string | null }> {
+  const activeUser = await getActiveUser();
+  if (!activeUser) {
+    return { error: 'No autorizado.' };
+  }
+
+  const supabase = await createAuthServerClient();
+
+  const { data: origin, error: fetchError } = await supabase
+    .from('work_item_origins')
+    .select('id, work_item_id')
+    .eq('id', workItemOriginId)
+    .maybeSingle();
+
+  if (fetchError || !origin) {
+    return { error: 'Origen no encontrado.' };
+  }
+
+  const { data: workItem, error: workItemError } = await supabase
+    .from('work_items')
+    .select('project_id')
+    .eq('id', origin.work_item_id)
+    .maybeSingle();
+
+  if (workItemError || !workItem) {
+    return { error: 'Work item no encontrado.' };
+  }
+
+  const visibleIds = await getVisibleProjectIds(activeUser.id, isGlobalAdmin(activeUser));
+  const isMember = visibleIds === null || visibleIds.includes(workItem.project_id);
+  if (!isMember) {
+    return { error: 'No autorizado.' };
+  }
+
+  const { error: deleteError } = await supabase
+    .from('work_item_origins')
+    .delete()
+    .eq('id', workItemOriginId);
+
+  if (deleteError) {
+    return { error: deleteError.message };
+  }
+
+  revalidatePath(`/projects/${workItem.project_id}`);
+  return { error: null };
 }

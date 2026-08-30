@@ -153,6 +153,40 @@ const byCode = (a: { code: string | null }, b: { code: string | null }) =>
  * a human can check — exactly the silent-drift failure this project keeps
  * hitting. Those rows land in "Sin fase" instead.
  */
+// ---------------------------------------------------------------------------
+// Origin options — Etapa 2, sesión 1M
+//
+// Flat task/subtask list for the work item origin editor (chips + combobox
+// in WorkItemRow) and for its labels. Lives here, not in a component, so
+// the Server Component (page.tsx) and the Client Component
+// (WorkItemsSection/WorkItemRow) derive the same codes from the same
+// composeCode() instead of composing them twice. 'phase' is deliberately
+// excluded — origins are only ever created from a task or subtask row
+// (workItemOriginStore only accepts those two).
+// ---------------------------------------------------------------------------
+
+export type OriginOption = { type: 'task' | 'subtask'; id: number; label: string };
+
+export function buildOriginOptions(workPlan: ProjectWorkPlan): OriginOption[] {
+  const options: OriginOption[] = [];
+
+  const addTask = (task: TaskWithFullRelations, phaseCode: string | null) => {
+    const taskCode = composeCode([phaseCode], task.code);
+    options.push({ type: 'task', id: task.id, label: taskCode ?? task.title });
+    for (const sub of task.subtasks) {
+      const subCode = composeCode([taskCode], sub.code);
+      options.push({ type: 'subtask', id: sub.id, label: subCode ?? sub.title });
+    }
+  };
+
+  for (const phase of workPlan.phases) {
+    for (const task of phase.tasks) addTask(task, phase.code);
+  }
+  for (const task of workPlan.orphanTasks) addTask(task, null);
+
+  return options;
+}
+
 export function buildWorkPlan(
   phaseRows: DbPhase[],
   tasks: TaskWithFullRelations[]

@@ -20,6 +20,7 @@ import { StatusBadge } from './StatusBadge';
 import { PriorityBadge } from './PriorityBadge';
 import { ProgressBar } from './ProgressBar';
 import { AssigneeSelector, AssigneeAvatars } from './AssigneeSelector';
+import { RowActionMenu } from './RowActionMenu';
 import {
   updateProjectTask,
   deleteProjectTask,
@@ -30,6 +31,7 @@ import {
 } from '@/src/lib/supabase/project-task-actions';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import { composeCode } from '@/src/lib/work-plan';
+import { useWorkItemOriginStore, type PendingWorkItemOrigin } from '@/src/store/workItemOriginStore';
 import type {
   TaskWithFullRelations,
   SubtaskWithAssignees,
@@ -38,6 +40,31 @@ import type {
   DbUser,
   DbPhase,
 } from '@/src/lib/supabase/types';
+
+// ─────────────────────────────────────────────
+// Origin menu items — shared by TaskRow and SubtaskRow triggers
+// ─────────────────────────────────────────────
+
+const WORK_ITEM_TYPE_LABELS: Record<PendingWorkItemOrigin['workItemType'], string> = {
+  bug: 'Reportar bug',
+  debt: 'Registrar deuda técnica',
+  question_rfc: 'Abrir pregunta/RFC',
+};
+
+function buildOriginMenuItems(
+  setPending: (p: PendingWorkItemOrigin) => void,
+  originType: 'task' | 'subtask',
+  originId: number,
+  originLabel: string
+) {
+  return (Object.keys(WORK_ITEM_TYPE_LABELS) as PendingWorkItemOrigin['workItemType'][]).map(
+    (workItemType) => ({
+      key: workItemType,
+      label: WORK_ITEM_TYPE_LABELS[workItemType],
+      onSelect: () => setPending({ workItemType, originType, originId, originLabel }),
+    })
+  );
+}
 
 // ─────────────────────────────────────────────
 // SubtaskRow
@@ -50,10 +77,14 @@ type SubtaskRowProps = {
   users: Pick<DbUser, 'id' | 'name'>[];
   projectId: number;
   onRefresh: () => void;
+  /** Etapa 2, sesión 1M — how many work items reference this row, keyed `subtask:${id}`. */
+  originCounts: Record<string, number>;
 };
 
-function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh }: SubtaskRowProps) {
+function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh, originCounts }: SubtaskRowProps) {
   const subtaskCode = composeCode([parentCode], subtask.code);
+  const setPending = useWorkItemOriginStore((s) => s.setPending);
+  const originCount = originCounts[`subtask:${subtask.id}`] ?? 0;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     title: subtask.title,
@@ -244,6 +275,15 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh }: Subtas
               {subtaskCode}
             </span>
           )}
+          {originCount > 0 && (
+            <span
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 text-[10px] text-muted-foreground no-underline"
+              title="Bugs/deuda técnica/preguntas vinculados a esta subtarea"
+            >
+              · {originCount} emergente{originCount === 1 ? '' : 's'}
+            </span>
+          )}
           <span className="truncate">{subtask.title}</span>
         </span>
         {subtask.description && (
@@ -285,6 +325,15 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh }: Subtas
       >
         <Pencil size={10} />
       </button>
+
+      {/* Reportar bug / deuda / pregunta desde esta subtarea. Etapa 2,
+          sesión 1M — origin_type siempre 'subtask' acá. */}
+      <RowActionMenu
+        title="Crear emergente desde esta subtarea"
+        menuLabel="Crear desde esta subtarea"
+        items={buildOriginMenuItems(setPending, 'subtask', subtask.id, subtaskCode ?? subtask.title)}
+        triggerClassName="opacity-0 group-hover:opacity-100 h-5 w-5 transition-all"
+      />
 
       {/* Delete */}
       <button
@@ -450,10 +499,14 @@ type TaskRowProps = {
   onRefresh: () => void;
   /** Fired after a successful move, with the destination phase id. */
   onMoved: (destPhaseId: number) => void;
+  /** Etapa 2, sesión 1M — how many work items reference each task/subtask, keyed `task:${id}`/`subtask:${id}`. */
+  originCounts: Record<string, number>;
 };
 
-export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved }: TaskRowProps) {
+export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved, originCounts }: TaskRowProps) {
   const taskCode = composeCode([phaseCode], task.code);
+  const setPending = useWorkItemOriginStore((s) => s.setPending);
+  const originCount = originCounts[`task:${task.id}`] ?? 0;
 
   // C-1 · destinations exclude the task's own phase. For an orphan task
   // `task.phase_id` is null and every phase qualifies. There is no reverse
@@ -763,6 +816,15 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
                 {taskCode}
               </span>
             )}
+            {originCount > 0 && (
+              <span
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 text-[11px] text-muted-foreground"
+                title="Bugs/deuda técnica/preguntas vinculados a esta tarea"
+              >
+                · {originCount} emergente{originCount === 1 ? '' : 's'}
+              </span>
+            )}
             <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
             {isOverdue && (
               <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-red-600">
@@ -840,6 +902,14 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
           )}
           {moveMenu}
 
+          {/* Reportar bug / deuda / pregunta desde esta tarea. Etapa 2,
+              sesión 1M — origin_type siempre 'task' acá. */}
+          <RowActionMenu
+            title="Crear emergente desde esta tarea"
+            menuLabel="Crear desde esta tarea"
+            items={buildOriginMenuItems(setPending, 'task', task.id, taskCode ?? task.title)}
+          />
+
           {/* Delete button */}
           <button
             onClick={handleDelete}
@@ -867,6 +937,7 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
               users={users}
               projectId={projectId}
               onRefresh={onRefresh}
+              originCounts={originCounts}
             />
           ))}
 

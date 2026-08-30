@@ -5,15 +5,23 @@ import { ChevronRight, Pencil, Trash2, Save, X, Plus, Check } from 'lucide-react
 import { cn } from '@/lib/utils';
 import { AssigneeSelector, AssigneeAvatars } from './AssigneeSelector';
 import { PriorityBadge } from './PriorityBadge';
-import { createWorkItem, updateWorkItem, deleteWorkItem } from '@/src/lib/supabase/work-item-actions';
+import {
+  createWorkItem,
+  updateWorkItem,
+  deleteWorkItem,
+  addWorkItemOrigin,
+  removeWorkItemOrigin,
+} from '@/src/lib/supabase/work-item-actions';
 import type { CreateWorkItemInput } from '@/src/lib/supabase/work-item-schema';
 import { TASK_PRIORITIES } from '@/src/lib/task-constants';
+import type { PendingWorkItemOrigin } from '@/src/store/workItemOriginStore';
+import type { OriginOption } from '@/src/lib/work-plan';
 import type {
   WorkItemType,
   WorkItemStatus,
   WorkItemSeverity,
   WorkItemImpact,
-  WorkItemWithAssignees,
+  WorkItemWithOrigins,
   ChecklistItem,
   DbUser,
   DbPhase,
@@ -48,6 +56,119 @@ const IMPACT_LABELS: Record<WorkItemImpact, string> = {
 
 function statusOption(status: WorkItemStatus) {
   return STATUS_OPTIONS.find((s) => s.value === status) ?? STATUS_OPTIONS[0];
+}
+
+function originLabel(
+  originType: 'phase' | 'task' | 'subtask',
+  originId: number,
+  originOptions: OriginOption[]
+): string {
+  const match = originOptions.find((o) => o.type === originType && o.id === originId);
+  if (match) return match.label;
+  // 'phase' origins, or a task/subtask outside this project's current
+  // workPlan (e.g. moved/deleted since the item was linked) — the base
+  // still supports it, this is just a fallback label.
+  return `${originType} #${originId}`;
+}
+
+// -----------------------------------------------------------------
+// OriginEditor — chips for the item's current origins (task/subtask
+// where it was reported) plus a combobox to link one more. Each
+// mutation is its own action (addWorkItemOrigin/removeWorkItemOrigin),
+// not a patch through updateWorkItem — no assigneeIds to resend here.
+// -----------------------------------------------------------------
+
+function OriginEditor({
+  workItemId,
+  origins,
+  originOptions,
+  onRefresh,
+}: {
+  workItemId: number;
+  origins: { id: number; origin_type: 'phase' | 'task' | 'subtask'; origin_id: number }[];
+  originOptions: OriginOption[];
+  onRefresh: () => void;
+}) {
+  const [selected, setSelected] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const linkedKeys = new Set(origins.map((o) => `${o.origin_type}:${o.origin_id}`));
+  const available = originOptions.filter((o) => !linkedKeys.has(`${o.type}:${o.id}`));
+
+  async function handleAdd() {
+    if (!selected) return;
+    const [type, idStr] = selected.split(':');
+    setSaving(true);
+    setError(null);
+    const { error: addError } = await addWorkItemOrigin(workItemId, type as 'task' | 'subtask', Number(idStr));
+    setSaving(false);
+    if (addError) {
+      setError(addError);
+      return;
+    }
+    setSelected('');
+    onRefresh();
+  }
+
+  async function handleRemove(originId: number) {
+    setError(null);
+    const { error: removeError } = await removeWorkItemOrigin(originId);
+    if (removeError) {
+      setError(removeError);
+      return;
+    }
+    onRefresh();
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {origins.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {origins.map((o) => (
+            <span
+              key={o.id}
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-mono text-slate-600"
+            >
+              {originLabel(o.origin_type, o.origin_id, originOptions)}
+              <button
+                onClick={() => handleRemove(o.id)}
+                className="text-slate-400 hover:text-red-500"
+                title="Quitar origen"
+              >
+                <X size={9} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {available.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="flex-1 min-w-0 rounded-md border border-border px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Vincular tarea/subtarea…</option>
+            {available.map((o) => (
+              <option key={`${o.type}:${o.id}`} value={`${o.type}:${o.id}`}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleAdd}
+            disabled={saving || !selected}
+            className="shrink-0 flex h-6 w-6 items-center justify-center rounded text-primary hover:bg-primary/10 disabled:opacity-40 transition-colors"
+            title="Vincular"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+      )}
+      {error && <p className="text-[10px] text-red-600">{error}</p>}
+    </div>
+  );
 }
 
 // -----------------------------------------------------------------
@@ -164,10 +285,12 @@ function ChecklistEditor({
 type WorkItemRowProps = {
   type: WorkItemType;
   /** Undefined renders the inline "new item" form instead of a row. */
-  item?: WorkItemWithAssignees;
+  item?: WorkItemWithOrigins;
   projectId: number;
   users: Pick<DbUser, 'id' | 'name'>[];
   phases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
+  /** Flat task/subtask list for the origin editor and its labels. */
+  originOptions: OriginOption[];
   canManage: boolean;
   /** Called after a successful edit-save or delete on an existing item. */
   onRefresh: () => void;
@@ -175,6 +298,8 @@ type WorkItemRowProps = {
   onSaved?: () => void;
   /** New-item mode only: called on cancel. */
   onCancel?: () => void;
+  /** New-item mode only: prefilled origin from a task/subtask trigger. */
+  initialOrigin?: PendingWorkItemOrigin | null;
 };
 
 type FormState = {
@@ -199,7 +324,7 @@ type FormState = {
   final_decision: string;
 };
 
-function buildFormState(item: WorkItemWithAssignees | undefined): FormState {
+function buildFormState(item: WorkItemWithOrigins | undefined): FormState {
   return {
     title: item?.title ?? '',
     description: item?.description ?? '',
@@ -229,10 +354,12 @@ export function WorkItemRow({
   projectId,
   users,
   phases,
+  originOptions,
   canManage,
   onRefresh,
   onSaved,
   onCancel,
+  initialOrigin,
 }: WorkItemRowProps) {
   const isNew = !item;
   const [editing, setEditing] = useState(false);
@@ -260,6 +387,9 @@ export function WorkItemRow({
       description: form.description.trim() || undefined,
       priority: form.priority,
       assigneeIds: form.assigneeIds,
+      ...(isNew && initialOrigin
+        ? { origin_type: initialOrigin.originType, origin_id: initialOrigin.originId }
+        : {}),
     };
 
     if (isNew) {
@@ -365,6 +495,17 @@ export function WorkItemRow({
   if (isNew || editing) {
     return (
       <div className={cn('flex flex-col border-t border-border', isNew ? 'bg-blue-50/40' : 'bg-primary/5')}>
+        {isNew && initialOrigin && (
+          <div className="px-4 pt-2.5">
+            {/* Fixed, non-editable while creating — comes from the
+                task/subtask trigger (RowActionMenu -> workItemOriginStore).
+                Editing origins is only available after the item exists,
+                via OriginEditor in edit mode. */}
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-mono text-slate-600">
+              Origen: {initialOrigin.originLabel}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
           <input
             autoFocus
@@ -719,6 +860,16 @@ export function WorkItemRow({
               )}
             </div>
           )}
+
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Orígenes</p>
+            <OriginEditor
+              workItemId={item.id}
+              origins={item.origins}
+              originOptions={originOptions}
+              onRefresh={onRefresh}
+            />
+          </div>
 
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Checklist</p>

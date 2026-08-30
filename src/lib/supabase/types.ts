@@ -209,6 +209,24 @@ export type WorkItemWithAssignees = DbWorkItem & {
   assignees: Pick<DbUser, 'id' | 'name'>[];
 };
 
+// Etapa 2, sesión 1M: vínculo opcional de un work item hacia dónde
+// apareció (fase/tarea/subtarea). `origin_type` es TEXT + CHECK en la
+// base, no un enum Postgres real (ver ARQUITECTURA-WORKPLAN.md,
+// sección `work_item_origins`) — igual que `assignments.assignable_type`.
+export type WorkItemOriginType = 'phase' | 'task' | 'subtask';
+
+export type DbWorkItemOrigin = {
+  id: number;
+  work_item_id: number;
+  origin_type: WorkItemOriginType;
+  origin_id: number;
+  created_at: string;
+};
+
+export type WorkItemWithOrigins = WorkItemWithAssignees & {
+  origins: Pick<DbWorkItemOrigin, 'id' | 'origin_type' | 'origin_id'>[];
+};
+
 // Fase 5F: project members
 export type DbProjectMember = {
   id: number;

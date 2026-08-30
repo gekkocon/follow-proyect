@@ -5,7 +5,9 @@ import { Plus, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WorkItemRow } from './WorkItemRow';
 import { getProjectWorkItems } from '@/src/lib/supabase/work-item-actions';
-import type { WorkItemType, WorkItemWithAssignees, DbUser, DbPhase } from '@/src/lib/supabase/types';
+import { useWorkItemOriginStore } from '@/src/store/workItemOriginStore';
+import type { OriginOption } from '@/src/lib/work-plan';
+import type { WorkItemType, WorkItemWithOrigins, DbUser, DbPhase } from '@/src/lib/supabase/types';
 
 // -----------------------------------------------------------------
 // Three stacked accordion blocks, one per work_item type — NOT real
@@ -34,15 +36,17 @@ const NEW_ITEM_LABEL: Record<WorkItemType, string> = {
 };
 
 type Props = {
-  initialWorkItems: WorkItemWithAssignees[];
+  initialWorkItems: WorkItemWithOrigins[];
   users: Pick<DbUser, 'id' | 'name'>[];
   phases: Pick<DbPhase, 'id' | 'code' | 'name'>[];
+  /** Etapa 2, sesión 1M — flat task/subtask list for origin labels and the add-origin combobox. */
+  originOptions: OriginOption[];
   projectId: number;
   canManage: boolean;
 };
 
-export function WorkItemsSection({ initialWorkItems, users, phases, projectId, canManage }: Props) {
-  const [items, setItems] = useState<WorkItemWithAssignees[]>(initialWorkItems);
+export function WorkItemsSection({ initialWorkItems, users, phases, originOptions, projectId, canManage }: Props) {
+  const [items, setItems] = useState<WorkItemWithOrigins[]>(initialWorkItems);
   const [openByType, setOpenByType] = useState<Record<WorkItemType, boolean>>({
     bug: false,
     debt: false,
@@ -54,6 +58,9 @@ export function WorkItemsSection({ initialWorkItems, users, phases, projectId, c
     question_rfc: false,
   });
 
+  const pending = useWorkItemOriginStore((s) => s.pending);
+  const clearPending = useWorkItemOriginStore((s) => s.clearPending);
+
   // Same "seed from Server Component, refetch client-side after every
   // mutation" pattern ProjectTasksClient already uses for the task
   // tree — independent state here, its own refresh(), on purpose.
@@ -61,13 +68,33 @@ export function WorkItemsSection({ initialWorkItems, users, phases, projectId, c
     setItems(initialWorkItems);
   }, [initialWorkItems]);
 
+  // Etapa 2, sesión 1M — a trigger from TaskRow/SubtaskRow (RowActionMenu)
+  // sets `pending` in workItemOriginStore. React to it here: expand the
+  // matching accordion and open its "new item" form pre-filled with the
+  // origin. `pending` clears on success, cancel, or the form being
+  // closed — never left dangling (see the three call sites below).
+  useEffect(() => {
+    if (!pending) return;
+    setOpenByType((prev) => ({ ...prev, [pending.workItemType]: true }));
+    setShowNewByType((prev) => ({ ...prev, [pending.workItemType]: true }));
+  }, [pending]);
+
   async function refresh() {
     const fresh = await getProjectWorkItems(projectId);
-    setItems(fresh);
+    setItems(fresh.items);
   }
 
   function toggleOpen(type: WorkItemType) {
-    setOpenByType((prev) => ({ ...prev, [type]: !prev[type] }));
+    setOpenByType((prev) => {
+      const nextOpen = !prev[type];
+      // Collapsing a section that has its "new item" form open counts as
+      // closing that form too — same clearPending obligation as Cancelar.
+      if (!nextOpen && showNewByType[type]) {
+        setShowNewByType((sn) => ({ ...sn, [type]: false }));
+        if (pending?.workItemType === type) clearPending();
+      }
+      return { ...prev, [type]: nextOpen };
+    });
   }
 
   return (
@@ -78,6 +105,7 @@ export function WorkItemsSection({ initialWorkItems, users, phases, projectId, c
           const typeItems = items.filter((i) => i.type === type);
           const open = openByType[type];
           const showNew = showNewByType[type];
+          const initialOrigin = pending && pending.workItemType === type ? pending : null;
 
           return (
             <div key={type} className="rounded-xl border border-border bg-white shadow-sm">
@@ -105,6 +133,7 @@ export function WorkItemsSection({ initialWorkItems, users, phases, projectId, c
                       projectId={projectId}
                       users={users}
                       phases={phases}
+                      originOptions={originOptions}
                       canManage={canManage}
                       onRefresh={refresh}
                     />
@@ -116,13 +145,19 @@ export function WorkItemsSection({ initialWorkItems, users, phases, projectId, c
                       projectId={projectId}
                       users={users}
                       phases={phases}
+                      originOptions={originOptions}
                       canManage={canManage}
                       onRefresh={refresh}
+                      initialOrigin={initialOrigin}
                       onSaved={() => {
                         setShowNewByType((prev) => ({ ...prev, [type]: false }));
+                        clearPending();
                         refresh();
                       }}
-                      onCancel={() => setShowNewByType((prev) => ({ ...prev, [type]: false }))}
+                      onCancel={() => {
+                        setShowNewByType((prev) => ({ ...prev, [type]: false }));
+                        clearPending();
+                      }}
                     />
                   ) : (
                     <div className="border-t border-border p-3">
