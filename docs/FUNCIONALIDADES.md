@@ -95,7 +95,7 @@ Crea tareas y subtareas nuevas a partir de un JSON anidado. Se puede pegar el te
 - `responsable` / `responsables` funcionan como alias de `assignee_names`.
 - El código se puede indicar con `code`; si no viene, el sistema lo genera solo.
 - La vista previa dice cuántas tareas y subtareas se van a crear, y **avisa si hay títulos repetidos** contra las que ya existen. Es un aviso, no un bloqueo: la importación crea la fila igual.
-- `dependencies` se acepta en el JSON, pero hoy no tiene ningún efecto visible en la app — se guarda y nada más.
+- `dependencies` se acepta en el JSON, solo para tareas (ya no para subtareas). Si una tarea con dependencias pasa a "En progreso" y alguna de las tareas referenciadas todavía no está "Completada", aparece el aviso "Depende de tareas sin cerrar" junto a esa tarea — es solo una señal visual, no bloquea el cambio de estado.
 - En un proyecto que ya tiene fases, las tareas importadas **nacen en el bloque "Sin fase"**, a diferencia del alta manual (que siempre exige elegir una fase). Hay que moverlas a mano después si corresponde.
 
 ---

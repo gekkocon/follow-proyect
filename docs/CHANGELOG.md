@@ -5,6 +5,31 @@
 
 ---
 
+## Fase 1O — Migración 014: start_date, dependencies, subtasks.completed — 2026-08-30
+
+**Alcance:** los tres campos que quedaban reservados desde la 013f (deuda de `estimated_cost` cerrada aparte, misma sesión previa). Decisión por campo, no un paquete único — cada uno se resolvió según su propio consumidor real, confirmado por auditoría antes de tocar código.
+
+**Por qué cada decisión:**
+
+- **`subtasks.completed` → eliminado, UI pasa a leer/escribir `status`.** Era redundante con `status` desde su origen: la fase 8B ya documentaba que ningún dato lo diferenciaba (899 subtareas medidas en su momento, ninguna con `completed=true` y estado distinto de `done`). Mantenerlo como columna paralela solo agregaba la posibilidad de que se desincronizara — que es justo lo que la advertencia de "Actualizar tareas" existía para prevenir. Sin columna, no hay desincronización posible.
+- **`dependencies` → se mantiene en `tasks`, se elimina de `subtasks`.** Auditoría previa confirmó que `subtasks.dependencies` nunca tuvo un consumidor real en ningún lado del código — ni UI, ni validación, ni lógica. En `tasks` sí se decidió implementar el consumidor que faltaba (barato: ~20 líneas) en vez de descartar el campo, siguiendo la recomendación ya escrita en `ARQUITECTURA-WORKPLAN.md` sección 10: un badge de aviso visual ("Depende de tareas sin cerrar"), sin bloqueo duro, sin grafo, sin ruta crítica.
+- **`start_date` → eliminado de `tasks` y `subtasks`.** Auditoría confirmó cero consumidores en cualquier formulario de alta o edición, en ningún componente. A diferencia de `dependencies`, no había ninguna funcionalidad a medio construir que valiera la pena terminar — era un campo que nunca se expuso a nadie desde que se agregó en la Fase 7.
+
+**Hallazgos fuera de la lista original de archivos, corregidos en el mismo commit:**
+
+- `app/(dashboard)/tasks/page.tsx` — el `SELECT` y el tipo `SubtaskListItem` seguían nombrando `completed`, sin que `TasksClient.tsx` lo consumiera. La auditoría previa (centrada en `/components` y `/src/lib`) no lo había detectado.
+- `src/lib/supabase/project-import-actions.ts` — `normalizeForRpc` seguía armando `start_date` para el payload de `import_project_tasks`, aunque el RPC vivo (013f) ya no lo escribía.
+
+**Lección de proceso:** el radio de un grep de campo antes de una migración destructiva tiene que cubrir `/app` además de `/components` y `/src/lib` — no asumir que los archivos "obvios" (acciones, tipos, componentes de la pantalla principal) son todos los consumidores reales. Una página de listado secundaria (`/tasks`, la vista global) alcanzó a quedar fuera de la primera pasada.
+
+**SQL:** ejecutada a mano en Supabase, verificada con smoke test de 9 pasos. **No hay archivo versionado en `/migrations` para esta migración** — a diferencia de la 013f (`estimated_cost`), ningún `014_*.sql` quedó commiteado en el repo. Mismo patrón de gap ya visto antes con "013f" (mencionada en `CLAUDE.md` antes de existir en disco); acá el archivo directamente no llegó a crearse. Pendiente: reconstruir y versionar el SQL real corrido (redefinición de `import_project_tasks` sin los tres campos + los `ALTER TABLE ... DROP COLUMN` correspondientes), como registro — la migración ya está aplicada, esto es solo para que el historial en `/migrations` refleje la base real.
+
+**Verificación:** smoke test de 9 pasos, PASA completo — pasos 3-6 y 9 verificados en producción real (no solo local); pasos 7-8 (badge de dependencias) verificados en local. Incluye verificación de reversión del badge: reaparece al reabrir una tarea con dependencia sin cerrar, desaparece al cerrarla.
+
+**Hallazgo aparte, no resuelto en esta sesión:** el Service Worker (deuda técnica 32 de `CLAUDE.md`) se confirmó como bug activo, no solo deuda de fondo — se re-registra sin ninguna guarda en cada navegación completa, y esa condición de carrera puede producir `TypeError: Cannot read properties of undefined (reading 'call')` y, en el peor caso, bloquear la navegación completa del origen en una pestaña. Sin relación con la migración 014. Sin verificar todavía si reproduce en Vercel/producción. Queda fuera del alcance de esta sesión — ver deuda 32 actualizada en `CLAUDE.md`.
+
+---
+
 ## Fase 1D-b — phase_id obligatorio — 2026-08-28
 
 **Alcance:** migración 013f. `tasks.phase_id` pasa a `NOT NULL` con gate
