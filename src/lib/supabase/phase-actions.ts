@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAuthServerClient } from './server';
 import { getActiveUser, canManageTeam } from './active-user';
+import { logActivityChange } from './activity-log';
 import type { DbPhase } from './types';
 
 // ─────────────────────────────────────────────
@@ -88,6 +89,16 @@ export async function updatePhase(
 ): Promise<{ error: string | null }> {
   const supabase = createServerClient();
 
+  // Etapa 3, paso 1 — read the current status before writing so the log
+  // can carry a real old_value. PhaseInput is not partial: every call
+  // includes status, whether it changed or not, so a plain "it was sent"
+  // check would log a no-op change on every save.
+  const { data: existing } = await supabase
+    .from('phases')
+    .select('status')
+    .eq('id', phaseId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from('phases')
     .update({
@@ -101,6 +112,10 @@ export async function updatePhase(
     .eq('project_id', projectId);
 
   if (error) return { error: error.message };
+
+  if (existing && existing.status !== data.status) {
+    await logActivityChange('phase', phaseId, 'status', existing.status, data.status);
+  }
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath('/dashboard');

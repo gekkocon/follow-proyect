@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAuthServerClient } from './server';
 import { getActiveUser, canManageTeam } from './active-user';
+import { logActivityChange } from './activity-log';
 import { buildWorkPlan, type ProjectWorkPlan } from '@/src/lib/work-plan';
 import type { DbTask, DbSubtask, DbUser, TaskWithFullRelations, SubtaskWithAssignees } from './types';
 
@@ -173,8 +174,26 @@ export async function updateProjectTask(
   assigneeIds: number[]
 ): Promise<{ error: string | null }> {
   const supabase = createServerClient();
+
+  // Etapa 3, paso 1 — only fetch the previous values when the patch
+  // actually touches one of the logged fields, to avoid a query on every
+  // title/description/due_date-only save.
+  const needsAuditRead = 'status' in data || 'is_blocked' in data;
+  const { data: existing } = needsAuditRead
+    ? await supabase.from('tasks').select('status, is_blocked').eq('id', taskId).maybeSingle()
+    : { data: null };
+
   const { error } = await supabase.from('tasks').update(data).eq('id', taskId);
   if (error) return { error: error.message };
+
+  if (existing) {
+    if ('status' in data && existing.status !== data.status) {
+      await logActivityChange('task', taskId, 'status', existing.status, data.status);
+    }
+    if ('is_blocked' in data && existing.is_blocked !== data.is_blocked) {
+      await logActivityChange('task', taskId, 'is_blocked', existing.is_blocked, data.is_blocked);
+    }
+  }
 
   await syncTaskAssignees(supabase, taskId, assigneeIds);
 
@@ -361,8 +380,20 @@ export async function updateProjectSubtask(
   assigneeIds: number[]
 ): Promise<{ error: string | null }> {
   const supabase = createServerClient();
+
+  // Etapa 3, paso 1 — subtasks have no is_blocked column (deuda 32
+  // notwithstanding — confirmed in types.ts), so status is the only
+  // logged field here.
+  const { data: existing } = 'status' in data
+    ? await supabase.from('subtasks').select('status').eq('id', subtaskId).maybeSingle()
+    : { data: null };
+
   const { error } = await supabase.from('subtasks').update(data).eq('id', subtaskId);
   if (error) return { error: error.message };
+
+  if (existing && 'status' in data && existing.status !== data.status) {
+    await logActivityChange('subtask', subtaskId, 'status', existing.status, data.status);
+  }
 
   await syncSubtaskAssignees(supabase, subtaskId, assigneeIds);
 
