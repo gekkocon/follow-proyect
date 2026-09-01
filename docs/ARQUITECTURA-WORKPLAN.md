@@ -1,10 +1,9 @@
 # Arquitectura funcional — Work Plan
 
-**Estado: DISEÑO — los cinco conflictos estructurales están cerrados.**
-Pendiente antes de implementar: revisión campo por campo (sección 3) y confirmación de `import_work_plan` (sección 8).
-La **Etapa 0** no depende de nada de esto y puede ejecutarse ya.
+**Estado: PARCIALMENTE IMPLEMENTADO.** Las Etapas 0 (limpieza Drizzle), 1 (el corte a `phases`/`tasks`/`subtasks`/`assignments`) y 2 (`work_items` emergentes) de la sección 9 ya están implementadas y en producción desde antes de la sesión 1N. Queda pendiente únicamente la **Etapa 3** — drag & drop, `activity_log`, `import_work_plan` — sesión 1Q en adelante.
+El diseño de las tres etapas ya implementadas sigue siendo la referencia válida de lo que se construyó; lo que describe como pendiente en el resto del documento (sección 8, sección 11) es real solo para la Etapa 3.
 Cierra la decisión abierta #2 de `CLAUDE.md`.
-Última actualización: agosto 2026.
+Última actualización: 31 ago 2026 (sesión 1Q).
 
 ---
 
