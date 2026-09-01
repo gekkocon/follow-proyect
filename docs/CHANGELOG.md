@@ -5,6 +5,16 @@
 
 ---
 
+## Fase 1P — Fix Service Worker (deuda 32) — 2026-08-30
+
+**Alcance:** commit `50269b4`, `fix(sw): guard SW registration with getRegistration() check and skip in dev`. Cierra la deuda técnica 32.
+
+**Qué cambió:** `SwRegister.tsx` ya no registra el Service Worker en desarrollo — `process.env.NODE_ENV !== 'production'` hace return temprano. En producción, consulta `navigator.serviceWorker.getRegistration()` antes de llamar a `.register()`, evitando registros duplicados en cada montaje/navegación. Resuelve la condición de carrera que producía `TypeError: Cannot read properties of undefined (reading 'call')` en `webpack.js`.
+
+**Verificación:** smoke test manual en Chrome, dev (`localhost:3001`, confirmado sin SW registrado tras `Unregister` manual del SW viejo) y producción (`localhost:3000` con `npm run build && npm run start`, confirmado un solo `registration` activo, log "SW already registered" en hard reload, sin duplicados). Deploy Ready en Vercel confirmado.
+
+---
+
 ## Fase 1O — Migración 014: start_date, dependencies, subtasks.completed — 2026-08-30
 
 **Alcance:** los tres campos que quedaban reservados desde la 013f (deuda de `estimated_cost` cerrada aparte, misma sesión previa). Decisión por campo, no un paquete único — cada uno se resolvió según su propio consumidor real, confirmado por auditoría antes de tocar código.
