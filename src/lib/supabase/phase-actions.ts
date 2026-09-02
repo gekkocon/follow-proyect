@@ -123,6 +123,63 @@ export async function updatePhase(
 }
 
 /**
+ * Etapa 3, paso 3a — persists a new phase order after a drag & drop.
+ *
+ * `orderedPhaseIds` is the full list in its new order; sort_order becomes
+ * each phase's index in that array. No bulk-update-with-different-values-
+ * per-row exists in postgrest-js without an `upsert`, and `upsert` needs
+ * every NOT NULL column or it risks clobbering a row with defaults — for
+ * a table with `code` as a unique, allocator-owned identity, that's not a
+ * risk worth taking to save N-1 round trips.
+ *
+ * Sequential, not parallel: the loop stops at the first failed update
+ * instead of firing every request at once. This is NOT atomicity — there
+ * is no transaction, and phases already written before the failure keep
+ * their new sort_order. It only bounds how far the inconsistency can
+ * spread: a Promise.all would let every in-flight update land regardless
+ * of an earlier one failing, so a mid-batch error could leave the order
+ * scrambled at any position instead of just from the failure point on.
+ * Real fix is a transaction/RPC; this is the deuda 41 stopgap.
+ *
+ * Every update is scoped to `project_id` too — a phase id from another
+ * project cannot be reached by mixing it into the array.
+ *
+ * On any failure, returns the error and does NOT log — the write did not
+ * fully succeed, so there is nothing true to record. `logActivityChange`
+ * only runs after every update in the batch confirmed success, same rule
+ * as the rest of the Etapa 3 wiring (paso 1).
+ */
+export async function reorderPhases(
+  projectId: number,
+  orderedPhaseIds: number[],
+  draggedPhaseId: number,
+  oldIndex: number,
+  newIndex: number
+): Promise<{ error: string | null }> {
+  const supabase = createServerClient();
+
+  for (let index = 0; index < orderedPhaseIds.length; index++) {
+    const { error } = await supabase
+      .from('phases')
+      .update({ sort_order: index })
+      .eq('id', orderedPhaseIds[index])
+      .eq('project_id', projectId);
+    if (error) return { error: error.message };
+  }
+
+  await logActivityChange(
+    'phase',
+    draggedPhaseId,
+    'sort_order',
+    String(oldIndex),
+    String(newIndex)
+  );
+
+  revalidatePath(`/projects/${projectId}`);
+  return { error: null };
+}
+
+/**
  * Etapa 1, paso 1C-c — deletes an empty phase.
  *
  * D-20: a phase with tasks is not deletable. The way out is moving them with

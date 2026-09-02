@@ -1,14 +1,29 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
 import { TaskRow } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
 import { ProgressBar } from './ProgressBar';
 import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
-import { deletePhase } from '@/src/lib/supabase/phase-actions';
+import { deletePhase, reorderPhases } from '@/src/lib/supabase/phase-actions';
 import { phaseProgress, type ProjectWorkPlan, type PhaseWithTasks } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 import type { TaskWithFullRelations, DbTask, DbUser, DbPhase } from '@/src/lib/supabase/types';
@@ -282,6 +297,13 @@ type WorkSectionProps = {
   originCounts: Record<string, number>;
   /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
   taskStatusById: Record<number, DbTask['status']>;
+  /**
+   * Etapa 3, paso 3a — drag handle for phase reordering, rendered by the
+   * parent `SortablePhaseSection` (it owns the `useSortable` hook, since
+   * that hook needs a stable DOM node to attach the sortable ref to).
+   * Undefined for the "Sin fase" block, which is never draggable.
+   */
+  dragHandle?: React.ReactNode;
 };
 
 function WorkSection({
@@ -301,6 +323,7 @@ function WorkSection({
   onMoved,
   originCounts,
   taskStatusById,
+  dragHandle,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
@@ -338,6 +361,14 @@ function WorkSection({
             expandable && 'cursor-pointer hover:bg-muted/20 transition-colors'
           )}
         >
+          {/* Etapa 3, paso 3a — drag handle. stopPropagation so a plain click
+              (no drag) does not also toggle the section open/closed. */}
+          {dragHandle && (
+            <span onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center">
+              {dragHandle}
+            </span>
+          )}
+
           {/* Sin chevron en nodos sin hijos: 6 de cada 10 no abren nada.
               Una fase es la excepción: abre para poder recibir su primera. */}
           <ChevronRight
@@ -483,6 +514,52 @@ function WorkSection({
 }
 
 // ─────────────────────────────────────────────
+// SortablePhaseSection — Etapa 3, paso 3a
+//
+// Owns the useSortable() hook so it has a stable DOM node (the outer div)
+// to attach the sortable ref/transform to. WorkSection itself stays a
+// plain component with no drag-and-drop knowledge beyond rendering
+// whatever `dragHandle` node it's handed — dnd-kit is a phases-list-only
+// concern, not something TaskRow/WorkSection need to import.
+// ─────────────────────────────────────────────
+
+type SortablePhaseSectionProps = Omit<WorkSectionProps, 'dragHandle'> & {
+  phaseId: number;
+};
+
+function SortablePhaseSection({ phaseId, ...workSectionProps }: SortablePhaseSectionProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: phaseId,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <WorkSection
+        {...workSectionProps}
+        phaseId={phaseId}
+        dragHandle={
+          <button
+            {...attributes}
+            {...listeners}
+            type="button"
+            className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-grab active:cursor-grabbing"
+            title="Arrastrar para reordenar"
+          >
+            <GripVertical size={14} />
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // ProjectTasksClient
 // ─────────────────────────────────────────────
 
@@ -549,6 +626,45 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
   function handleMoved(destPhaseId: number) {
     setPhaseOpen((prev) => ({ ...prev, [destPhaseId]: true }));
     refresh();
+  }
+
+  // Etapa 3, paso 3a — phase drag & drop. PointerSensor with a small
+  // activation distance so a plain click on the handle (no real drag)
+  // does not start a drag gesture.
+  const dragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
+
+  // Optimistic reorder: update local state immediately, persist in the
+  // background, and roll back to the previous order if the write fails —
+  // same "patch first, refresh() only rebuilds the whole tree on other
+  // mutations" spirit as the rest of this component, but here a full
+  // refresh() would fight the drag animation, so the rollback is a plain
+  // state revert instead.
+  function handlePhaseDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const previousPhases = workPlan.phases;
+    const oldIndex = previousPhases.findIndex((p) => p.id === active.id);
+    const newIndex = previousPhases.findIndex((p) => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(previousPhases, oldIndex, newIndex);
+    setWorkPlan((wp) => ({ ...wp, phases: reordered }));
+
+    reorderPhases(
+      projectId,
+      reordered.map((p) => p.id),
+      active.id as number,
+      oldIndex,
+      newIndex
+    ).then(({ error }) => {
+      if (error) {
+        setWorkPlan((wp) => ({ ...wp, phases: previousPhases }));
+        alert(error);
+      }
+    });
   }
 
   // Minimal shape for the move dropdown. Recomputed per render on purpose:
@@ -667,27 +783,43 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
         <div className="space-y-3">
           {hasPhases ? (
             <>
-              {workPlan.phases.map((phase) => (
-                <WorkSection
-                  key={phase.id}
-                  code={phase.code}
-                  name={phase.name}
-                  tasks={phase.tasks}
-                  progress={phase.progress}
-                  phaseId={phase.id}
-                  phase={phase}
-                  open={isPhaseOpen(phase.id)}
-                  onToggle={() => togglePhase(phase.id)}
-                  users={users}
-                  projectId={projectId}
-                  onDelete={handleDelete}
-                  onRefresh={refresh}
-                  allPhases={phaseOptions}
-                  onMoved={handleMoved}
-                  originCounts={originCounts}
-                  taskStatusById={taskStatusById}
-                />
-              ))}
+              {/* Etapa 3, paso 3a — drag & drop de fases únicamente. La
+                  SortableContext solo envuelve workPlan.phases: el bloque
+                  "Sin fase" (sin phaseId) queda fuera, así que no hay
+                  forma de arrastrar algo ahí adentro ni de sacar una fase
+                  de esta lista — dnd-kit no ofrece ningún otro destino. */}
+              <DndContext
+                sensors={dragSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handlePhaseDragEnd}
+              >
+                <SortableContext
+                  items={workPlan.phases.map((p) => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {workPlan.phases.map((phase) => (
+                    <SortablePhaseSection
+                      key={phase.id}
+                      code={phase.code}
+                      name={phase.name}
+                      tasks={phase.tasks}
+                      progress={phase.progress}
+                      phaseId={phase.id}
+                      phase={phase}
+                      open={isPhaseOpen(phase.id)}
+                      onToggle={() => togglePhase(phase.id)}
+                      users={users}
+                      projectId={projectId}
+                      onDelete={handleDelete}
+                      onRefresh={refresh}
+                      allPhases={phaseOptions}
+                      onMoved={handleMoved}
+                      originCounts={originCounts}
+                      taskStatusById={taskStatusById}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
 
               {workPlan.orphanTasks.length > 0 && (
                 <WorkSection
