@@ -487,7 +487,7 @@ const MOVE_MENU_MAX_HEIGHT = 260;
 // TaskRow (main export)
 // ─────────────────────────────────────────────
 
-type TaskRowProps = {
+export type TaskRowProps = {
   task: TaskWithFullRelations;
   /** Code of the enclosing phase, or null for a phase-less task. */
   phaseCode?: string | null;
@@ -503,9 +503,17 @@ type TaskRowProps = {
   originCounts: Record<string, number>;
   /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
   taskStatusById: Record<number, DbTask['status']>;
+  /**
+   * Etapa 3, paso 3b — drag handle for same-container task reordering,
+   * rendered by the parent `SortableTaskRow` (ProjectTasksClient.tsx),
+   * which owns the `useSortable` hook. Additive only: TaskRow has zero
+   * other drag-and-drop knowledge, same pattern as WorkSection's
+   * `dragHandle` in paso 3a.
+   */
+  dragHandle?: React.ReactNode;
 };
 
-export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved, originCounts, taskStatusById }: TaskRowProps) {
+export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete, onRefresh, onMoved, originCounts, taskStatusById, dragHandle }: TaskRowProps) {
   const taskCode = composeCode([phaseCode], task.code);
   const setPending = useWorkItemOriginStore((s) => s.setPending);
   const originCount = originCounts[`task:${task.id}`] ?? 0;
@@ -796,6 +804,14 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
     <div className="border border-border rounded-lg bg-white shadow-sm">
       {/* Task header row */}
       <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+        {/* Etapa 3, paso 3b — drag handle. stopPropagation so a plain
+            click (no drag) does not also toggle the subtasks panel. */}
+        {dragHandle && (
+          <span onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0 flex items-center">
+            {dragHandle}
+          </span>
+        )}
+
         {/* Expand chevron */}
         <button
           onClick={() => subtasksTotal > 0 && setExpanded((e) => !e)}

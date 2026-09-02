@@ -333,6 +333,57 @@ export async function moveTaskToPhase(
   return { code, error: null };
 }
 
+/**
+ * Etapa 3, paso 3b — persists a new task order within ONE container
+ * (a single phase, or the phase-less "Sin fase" bucket) after a drag &
+ * drop. Never moves a task between containers — that stays exclusively
+ * `moveTaskToPhase`'s job. `phaseId` identifies which container is being
+ * reordered and is used to scope every update, so a task id that
+ * somehow belongs to a different phase (or a different phase-less state)
+ * cannot be reached by mixing it into `orderedTaskIds`.
+ *
+ * Sequential, not parallel — same reasoning as `reorderPhases` (deuda
+ * 41): the loop stops at the first failed update instead of firing every
+ * request at once. Not atomicity, no transaction: tasks already written
+ * before a mid-batch failure keep their new sort_order. It only bounds
+ * how far the inconsistency can spread compared to a Promise.all, where
+ * every in-flight update lands regardless of an earlier one failing.
+ *
+ * `.is('phase_id', null)` vs `.eq('phase_id', phaseId)`: Postgres (and
+ * PostgREST) never matches NULL with `= NULL`, so a plain `.eq('phase_id',
+ * null)` would silently filter out every row instead of scoping to the
+ * orphan bucket. No existing call site in this file needed this — it's
+ * new here because moveTaskToPhase and createProjectTask always deal
+ * with a real, non-null phase_id.
+ */
+export async function reorderTasks(
+  projectId: number,
+  phaseId: number | null,
+  orderedTaskIds: number[],
+  draggedTaskId: number,
+  oldIndex: number,
+  newIndex: number
+): Promise<{ error: string | null }> {
+  const supabase = createServerClient();
+
+  for (let index = 0; index < orderedTaskIds.length; index++) {
+    const base = supabase
+      .from('tasks')
+      .update({ sort_order: index })
+      .eq('id', orderedTaskIds[index])
+      .eq('project_id', projectId);
+
+    const { error } = phaseId === null ? await base.is('phase_id', null) : await base.eq('phase_id', phaseId);
+
+    if (error) return { error: error.message };
+  }
+
+  await logActivityChange('task', draggedTaskId, 'sort_order', String(oldIndex), String(newIndex));
+
+  revalidatePath(`/projects/${projectId}`);
+  return { error: null };
+}
+
 // ─────────────────────────────────────────────
 // SUBTASKS
 // ─────────────────────────────────────────────

@@ -19,10 +19,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { AssigneeSelector } from './AssigneeSelector';
-import { TaskRow } from './TaskRow';
+import { TaskRow, type TaskRowProps } from './TaskRow';
 import { ImportTasksPanel } from './ImportTasksPanel';
 import { ProgressBar } from './ProgressBar';
-import { createProjectTask, getProjectWorkPlan } from '@/src/lib/supabase/project-task-actions';
+import { createProjectTask, getProjectWorkPlan, reorderTasks } from '@/src/lib/supabase/project-task-actions';
 import { deletePhase, reorderPhases } from '@/src/lib/supabase/phase-actions';
 import { phaseProgress, type ProjectWorkPlan, type PhaseWithTasks } from '@/src/lib/work-plan';
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
@@ -219,40 +219,111 @@ type TaskListProps = {
   originCounts: Record<string, number>;
   /** Migración 014 — status de TODAS las tareas del proyecto, para el badge de dependencias sin cerrar. */
   taskStatusById: Record<number, DbTask['status']>;
+  /**
+   * Etapa 3, paso 3b — id of the phase this list belongs to, or null for
+   * the "Sin fase" bucket. Scopes reorderTasks so a drag never reaches
+   * across containers.
+   */
+  phaseId: number | null;
+  /** Etapa 3, paso 3b — reorder within THIS container, owned by ProjectTasksClient. */
+  onTaskDragEnd: (containerPhaseId: number | null, tasksInContainer: TaskWithFullRelations[], event: DragEndEvent) => void;
 };
 
-function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved, originCounts, taskStatusById }: TaskListProps) {
+function TaskList({ tasks, phaseCode, users, projectId, onDelete, onRefresh, allPhases, onMoved, originCounts, taskStatusById, phaseId, onTaskDragEnd }: TaskListProps) {
   const [showAll, setShowAll] = useState(false);
 
   const hidden = tasks.length - TASKS_VISIBLE_PER_PHASE;
   const visible = showAll ? tasks : tasks.slice(0, TASKS_VISIBLE_PER_PHASE);
 
-  return (
-    <div className="space-y-2">
-      {visible.map((task) => (
-        <TaskRow
-          key={task.id}
-          task={task}
-          phaseCode={phaseCode}
-          users={users}
-          projectId={projectId}
-          allPhases={allPhases}
-          onDelete={onDelete}
-          onRefresh={onRefresh}
-          onMoved={onMoved}
-          originCounts={originCounts}
-          taskStatusById={taskStatusById}
-        />
-      ))}
+  // Etapa 3, paso 3b — one DndContext per TaskList instance, which is
+  // already one-per-container (one per phase, one for "Sin fase", or the
+  // single flat list when the project has no phases at all). Never a
+  // shared context across containers, so a drag physically cannot land
+  // outside the list it started in — dnd-kit has no other SortableContext
+  // to drop into. Only the currently visible slice is sortable; dragging
+  // past the "Mostrar N más" cut is out of scope here.
+  const taskDragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
 
-      {hidden > 0 && !showAll && (
-        <button
-          onClick={() => setShowAll(true)}
-          className="w-full rounded-lg border border-dashed border-border py-1.5 text-xs text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
-        >
-          Mostrar {hidden} más
-        </button>
-      )}
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    onTaskDragEnd(phaseId, visible, event);
+  }
+
+  return (
+    <DndContext sensors={taskDragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={visible.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">
+          {visible.map((task) => (
+            <SortableTaskRow
+              key={task.id}
+              task={task}
+              phaseCode={phaseCode}
+              users={users}
+              projectId={projectId}
+              allPhases={allPhases}
+              onDelete={onDelete}
+              onRefresh={onRefresh}
+              onMoved={onMoved}
+              originCounts={originCounts}
+              taskStatusById={taskStatusById}
+            />
+          ))}
+
+          {hidden > 0 && !showAll && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full rounded-lg border border-dashed border-border py-1.5 text-xs text-muted-foreground hover:text-primary hover:bg-muted/30 transition-colors"
+            >
+              Mostrar {hidden} más
+            </button>
+          )}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SortableTaskRow — Etapa 3, paso 3b
+//
+// Same shape as SortablePhaseSection (paso 3a): owns useSortable() for a
+// stable DOM node, and hands TaskRow a ready-made dragHandle node. TaskRow
+// itself stays exactly as risky/large as before, with one additive prop.
+// ─────────────────────────────────────────────
+
+type SortableTaskRowProps = Omit<TaskRowProps, 'dragHandle'>;
+
+function SortableTaskRow({ task, ...taskRowProps }: SortableTaskRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskRow
+        {...taskRowProps}
+        task={task}
+        dragHandle={
+          <button
+            {...attributes}
+            {...listeners}
+            type="button"
+            className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-grab active:cursor-grabbing"
+            title="Arrastrar para reordenar"
+          >
+            <GripVertical size={13} />
+          </button>
+        }
+      />
     </div>
   );
 }
@@ -304,6 +375,8 @@ type WorkSectionProps = {
    * Undefined for the "Sin fase" block, which is never draggable.
    */
   dragHandle?: React.ReactNode;
+  /** Etapa 3, paso 3b — reorder within this section's own task list. */
+  onTaskDragEnd: (containerPhaseId: number | null, tasksInContainer: TaskWithFullRelations[], event: DragEndEvent) => void;
 };
 
 function WorkSection({
@@ -324,6 +397,7 @@ function WorkSection({
   originCounts,
   taskStatusById,
   dragHandle,
+  onTaskDragEnd,
 }: WorkSectionProps) {
   const hasTasks = tasks.length > 0;
   const isPhase = phaseId !== undefined;
@@ -480,6 +554,8 @@ function WorkSection({
               onMoved={onMoved}
               originCounts={originCounts}
               taskStatusById={taskStatusById}
+              phaseId={phaseId ?? null}
+              onTaskDragEnd={onTaskDragEnd}
             />
           )}
 
@@ -667,6 +743,52 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
     });
   }
 
+  // Etapa 3, paso 3b — same optimistic-reorder-with-rollback shape as
+  // handlePhaseDragEnd, one level down: `tasksInContainer` is whatever
+  // TaskList had visible when the drag started (its own `visible` slice),
+  // so oldIndex/newIndex are computed against that same array `onDragEnd`
+  // already validated (over exists, active !== over). `containerPhaseId`
+  // is null for the "Sin fase" bucket — patches `orphanTasks` instead of
+  // walking `phases`.
+  function handleTaskDragEnd(
+    containerPhaseId: number | null,
+    tasksInContainer: TaskWithFullRelations[],
+    event: DragEndEvent
+  ) {
+    const { active, over } = event;
+    if (!over) return;
+
+    const oldIndex = tasksInContainer.findIndex((t) => t.id === active.id);
+    const newIndex = tasksInContainer.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(tasksInContainer, oldIndex, newIndex);
+    const previousWorkPlan = workPlan;
+
+    setWorkPlan((wp) =>
+      containerPhaseId === null
+        ? { ...wp, orphanTasks: reordered }
+        : {
+            ...wp,
+            phases: wp.phases.map((p) => (p.id === containerPhaseId ? { ...p, tasks: reordered } : p)),
+          }
+    );
+
+    reorderTasks(
+      projectId,
+      containerPhaseId,
+      reordered.map((t) => t.id),
+      active.id as number,
+      oldIndex,
+      newIndex
+    ).then(({ error }) => {
+      if (error) {
+        setWorkPlan(previousWorkPlan);
+        alert(error);
+      }
+    });
+  }
+
   // Minimal shape for the move dropdown. Recomputed per render on purpose:
   // the array is one small object per phase and skipping useMemo keeps the
   // dependency list out of a 600-line component.
@@ -816,6 +938,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
                       onMoved={handleMoved}
                       originCounts={originCounts}
                       taskStatusById={taskStatusById}
+                      onTaskDragEnd={handleTaskDragEnd}
                     />
                   ))}
                 </SortableContext>
@@ -837,6 +960,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
                   onMoved={handleMoved}
                   originCounts={originCounts}
                   taskStatusById={taskStatusById}
+                  onTaskDragEnd={handleTaskDragEnd}
                 />
               )}
             </>
@@ -855,6 +979,8 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
               onMoved={handleMoved}
               originCounts={originCounts}
               taskStatusById={taskStatusById}
+              phaseId={null}
+              onTaskDragEnd={handleTaskDragEnd}
             />
           )}
 
