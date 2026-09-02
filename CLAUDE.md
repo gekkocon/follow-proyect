@@ -1,7 +1,7 @@
 # CLAUDE.md — follow-proyect
 
 Reglas del repositorio. Se cargan automáticamente al abrir sesión de Claude Code.
-Última fase cerrada: **1O completo** — migración 014 (`start_date`, `dependencies`, `subtasks.completed`): `completed` eliminado (UI lee/escribe `status`), `start_date` eliminado de `tasks`/`subtasks`, `dependencies` eliminado de `subtasks` (se mantiene en `tasks`) con badge visual "Depende de tareas sin cerrar" cuando una tarea `in_progress` referencia otra que no está `done`. Smoke test de 9 pasos, PASA completo. Hallazgo aparte: Service Worker (deuda 32) confirmado como bug activo, no solo deuda de fondo — ver deuda 32 actualizada.
+Última fase cerrada: **1Q, pasos 1-3 de Etapa 3 completos** — `activity_log` (migración 017, helper `logActivityChange`, wiring en `status`/`is_blocked` de fases/tareas/subtareas), `tasks.sort_order` (migración 018), drag & drop de fases y tareas con `@dnd-kit` (`reorderPhases`, `reorderTasks`, ambos secuenciales y no atómicos por diseño — ver deuda 41). Commits: `cd86cbc`, `6bf95b0`, `0e8103f`, `8292d34`. Falta el paso 4/4 de Etapa 3: `import_work_plan` — ver `docs/PLAN-SEMILLA-1R.md`.
 
 ---
 

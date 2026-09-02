@@ -5,6 +5,70 @@
 
 ---
 
+## Sesión 1Q — 01 sep 2026
+
+Etapa 3 del Work Plan (drag & drop, activity_log, import_work_plan),
+pasos 1 a 3 de 4. Nace al cerrar 1P (fix Service Worker, deuda 32,
+commit `b9ba39f`).
+
+**Paso 1 — `activity_log`.** Tabla nueva (migración 017), diseño
+mínimo: `entity_type, entity_id, user_id, field, old_value, new_value,
+created_at`. Helper único `logActivityChange()` en
+`src/lib/supabase/activity-log.ts`: obtiene `user_id` vía
+`getActiveUser()` internamente (nunca recibido como parámetro),
+best-effort (no lanza excepción si el insert falla). Integrado en
+`updatePhase`, `updateProjectTask`, `updateProjectSubtask` y
+`updateTaskStatus`, para los campos `status` e `is_blocked` — siempre
+llamado después de que el write real confirmó éxito, nunca antes.
+Alcance del primer pase acotado a propósito: el resto de los campos
+se instrumenta cuando haya necesidad real. Commit `cd86cbc`.
+
+**Paso 2 — `tasks.sort_order`.** Migración 018: columna nueva
+(`int NOT NULL DEFAULT 0`), backfill por `phase_id` ordenado por `id`,
+verificado en cero filas `NULL` antes de cerrar. Agregado a `DbTask`
+en `types.ts`. Auditoría de `SELECT`s explícitos en `/app` confirmó
+que ningún listado necesitaba el campo agregado a mano —
+`getProjectTasksFull` ya usa `select('*')`. Commit `6bf95b0`.
+
+**Paso 3 — drag & drop de fases y tareas.** Librería nueva:
+`@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`.
+
+- *3a — fases* (`0e8103f`): `reorderPhases()` en `phase-actions.ts`,
+  `SortablePhaseSection` en `ProjectTasksClient.tsx`. `WorkSection`
+  recibe un prop `dragHandle` opcional, aditivo, sin saber nada de
+  dnd-kit.
+- *3b — tareas* (`8292d34`): `reorderTasks()` en
+  `project-task-actions.ts`, mismo patrón. `TaskList` arma su propio
+  `DndContext`/`SortableContext` por instancia — una por fase, una
+  para "Sin fase", una para el caso plano sin fases (que resultó ser
+  la misma rama de código que "Sin fase", no una tercera
+  implementación). `TaskRow.tsx` recibió solo un prop `dragHandle`
+  aditivo y el cambio de visibilidad `export type TaskRowProps` —
+  nada más se tocó del archivo de mayor riesgo del repo.
+
+En ambos casos, mover un ítem entre contenedores (fase a fase, o
+fase a "Sin fase") sigue siendo exclusivamente `moveTaskToPhase` — el
+drag & drop nunca cruza contenedores, por diseño de qué `items` recibe
+cada `SortableContext`.
+
+**Deuda nueva — 41.** `reorderPhases` y `reorderTasks` no son
+atómicas: loop secuencial de updates individuales (no `Promise.all`,
+para acotar la ventana de inconsistencia ante un fallo a mitad de
+camino — no es atomicidad real, es contención de daño). Misma familia
+que las deudas 26 y 30. Documentada en `CLAUDE.md` antes de
+implementar, no después.
+
+**Log de `activity_log` para reordenamientos:** decisión explícita de
+loguear solo el ítem arrastrado (posición vieja/nueva), no una fila
+por cada ítem cuyo `sort_order` cambió — evita ensuciar el histórico
+en cada drag de una lista larga.
+
+**Queda pendiente — paso 4/4: `import_work_plan`.** La pieza más
+grande de la etapa, porque `import_project_tasks` está activamente
+invocada en producción hoy. Ver `docs/PLAN-SEMILLA-1R.md`.
+
+---
+
 ## Fase 1P — Fix Service Worker (deuda 32) — 2026-08-30
 
 **Alcance:** commit `50269b4`, `fix(sw): guard SW registration with getRegistration() check and skip in dev`. Cierra la deuda técnica 32.
