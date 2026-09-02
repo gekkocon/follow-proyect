@@ -50,6 +50,9 @@ export type DbTask = {
   blocked_reason: string | null;
   due_date: string | null;
   dependencies: number[];
+  // Etapa 3, paso 2 (migración 018) — drag & drop reordering. Same
+  // column/position convention as DbPhase.sort_order below.
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };
