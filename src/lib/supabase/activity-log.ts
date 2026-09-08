@@ -11,7 +11,13 @@ import { getActiveUser } from './active-user';
 // called from inside other server actions.
 // ---------------------------------------------------------------------------
 
-export type ActivityEntityType = 'phase' | 'task' | 'subtask';
+// Etapa 3, paso 4 — 'project' se agrega para la fila de resumen que inserta
+// import_work_plan (una por corrida, no una por entidad creada). Esa fila la
+// escribe la propia función SQL con un INSERT directo, no logActivityChange:
+// este helper solo amplía el tipo para que el resto del código (lectura de
+// filas de activity_log, si alguna vez se agrega) sepa que 'project' es un
+// entity_type válido.
+export type ActivityEntityType = 'phase' | 'task' | 'subtask' | 'project';
 
 /**
  * Best-effort audit trail. Never throws and never returns an error to the

@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { createAuthServerClient, createServerClient } from './server';
 import { importPayloadSchema, type ImportPayload, type ImportTaskInput, type ImportSubtaskInput } from './import-schema';
 import { updatePayloadSchema, type UpdateItemInput } from './import-schema';
+import {
+  importWorkPlanPayloadSchema,
+  type ImportWorkPlanPhaseInput,
+} from './import-schema';
 import { normalizeTaskStatus, normalizeTaskPriority } from '@/src/lib/task-constants';
 import { getProjectTasksFull } from './project-task-actions';
 import {
@@ -58,6 +62,24 @@ function normalizeForRpc(tasks: ImportTaskInput[]) {
   return tasks.map((t) => ({
     ...normalizeItem(t),
     subtasks: (t.subtasks ?? []).map(normalizeItem),
+  }));
+}
+
+/**
+ * Igual que normalizeForRpc, pero para el nivel de fase que agrega
+ * import_work_plan. Reusa normalizeForRpc tal cual para las tareas de cada
+ * fase — el shape de tarea no cambió, solo se le agregó un contenedor
+ * arriba — así que no hay lógica de normalización de tarea duplicada acá.
+ */
+function normalizePhasesForRpc(phases: ImportWorkPlanPhaseInput[]) {
+  return phases.map((p) => ({
+    ...p,
+    status: normalizeTaskStatus(p.status),
+    priority: normalizeTaskPriority(p.priority),
+    objective: p.objective || null,
+    due_date: p.due_date || null,
+    code: p.code?.trim() || null,
+    tasks: normalizeForRpc(p.tasks),
   }));
 }
 
@@ -133,6 +155,143 @@ export async function importProjectTasks(
 
   return {
     error: null,
+    tasksCreated: rpcData?.tasks_created ?? 0,
+    subtasksCreated: rpcData?.subtasks_created ?? 0,
+  };
+}
+
+// ===========================================================================
+// Etapa 3, paso 4 — Importación de plan de trabajo (fases + tareas + subtareas)
+//
+// Mismo criterio que previewProjectImport/importProjectTasks, con dos
+// diferencias: el payload trae sus propias fases (nada de elegir una fase
+// destino en el panel) y el chequeo de títulos repetidos se hace por fase,
+// no por proyecto entero — dos fases distintas pueden compartir un título
+// de tarea sin que eso sea un duplicado real.
+// ===========================================================================
+
+export type ImportWorkPlanPreview = {
+  error: string | null;
+  phasesCount: number;
+  tasksCount: number;
+  subtasksCount: number;
+  duplicateTitles: string[];
+};
+
+export type ImportWorkPlanResult = {
+  error: string | null;
+  phasesCreated: number;
+  tasksCreated: number;
+  subtasksCreated: number;
+};
+
+function parseWorkPlanPayload(raw: unknown): {
+  data: { phases: ImportWorkPlanPhaseInput[] } | null;
+  error: string | null;
+} {
+  const parsed = importWorkPlanPayloadSchema.safeParse(raw);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return { data: null, error: `JSON inválido: ${first.path.join('.')} — ${first.message}` };
+  }
+  return { data: parsed.data, error: null };
+}
+
+/**
+ * Valida el JSON y calcula cuántas fases/tareas/subtareas se crearían, sin
+ * escribir nada. Los duplicados de título se buscan dentro de cada fase por
+ * separado: contra las tareas que ya existen en esa fase (si el código de la
+ * fase del payload coincide con una fase real del proyecto) y contra las
+ * demás tareas de la misma fase dentro del propio archivo. Una fase sin
+ * código, o con un código que no coincide con ninguna fase existente, es
+ * fase nueva: no hay nada en la base para cruzar, solo duplicados internos
+ * del archivo.
+ */
+export async function previewWorkPlanImport(
+  projectId: number,
+  rawPayload: unknown
+): Promise<ImportWorkPlanPreview> {
+  const { data, error } = parseWorkPlanPayload(rawPayload);
+  if (!data) {
+    return { error, phasesCount: 0, tasksCount: 0, subtasksCount: 0, duplicateTitles: [] };
+  }
+
+  const supabase = createServerClient();
+  const [{ data: existingTasks }, { data: existingPhases }] = await Promise.all([
+    supabase.from('tasks').select('title, phase_id').eq('project_id', projectId),
+    supabase.from('phases').select('id, code').eq('project_id', projectId),
+  ]);
+
+  const phaseCodeById = new Map((existingPhases ?? []).map((p) => [p.id, p.code]));
+  const existingTitlesByPhaseKey = new Map<string, Set<string>>();
+  for (const task of existingTasks ?? []) {
+    if (task.phase_id === null) continue;
+    const key = phaseCodeById.get(task.phase_id) ?? `phase:${task.phase_id}`;
+    const set = existingTitlesByPhaseKey.get(key) ?? new Set<string>();
+    set.add(task.title.trim().toLowerCase());
+    existingTitlesByPhaseKey.set(key, set);
+  }
+
+  const duplicates = new Set<string>();
+  let tasksCount = 0;
+  let subtasksCount = 0;
+
+  data.phases.forEach((phase, index) => {
+    const phaseKey = phase.code?.trim() || `__new_phase_${index}`;
+    const existingInPhase = existingTitlesByPhaseKey.get(phaseKey);
+    const seenInPhase = new Set<string>();
+
+    for (const task of phase.tasks) {
+      const key = task.title.trim().toLowerCase();
+      if (existingInPhase?.has(key) || seenInPhase.has(key)) duplicates.add(task.title);
+      seenInPhase.add(key);
+      tasksCount += 1;
+      subtasksCount += task.subtasks?.length ?? 0;
+    }
+  });
+
+  return {
+    error: null,
+    phasesCount: data.phases.length,
+    tasksCount,
+    subtasksCount,
+    duplicateTitles: Array.from(duplicates),
+  };
+}
+
+/**
+ * Importa fases, tareas y subtareas dentro de una única transacción en la
+ * base de datos (función import_work_plan, Etapa 3 paso 4). Requiere sesión
+ * propagada: la RPC gatea por rol (admin o pm) y, para pm, por membresía en
+ * el proyecto — createAuthServerClient() es el único de los clientes de
+ * server.ts que lleva el JWT hasta Postgres. Un error de permisos (42501) se
+ * devuelve tal cual en `error`, sin traducir ni interceptar.
+ */
+export async function importWorkPlan(
+  projectId: number,
+  rawPayload: unknown
+): Promise<ImportWorkPlanResult> {
+  const { data, error } = parseWorkPlanPayload(rawPayload);
+  if (!data) {
+    return { error, phasesCreated: 0, tasksCreated: 0, subtasksCreated: 0 };
+  }
+
+  const supabase = await createAuthServerClient();
+  const { data: rpcData, error: rpcError } = await supabase.rpc('import_work_plan', {
+    p_project_id: projectId,
+    p_payload: { phases: normalizePhasesForRpc(data.phases) },
+  });
+
+  if (rpcError) {
+    return { error: rpcError.message, phasesCreated: 0, tasksCreated: 0, subtasksCreated: 0 };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath('/dashboard');
+
+  return {
+    error: null,
+    phasesCreated: rpcData?.phases_created ?? 0,
     tasksCreated: rpcData?.tasks_created ?? 0,
     subtasksCreated: rpcData?.subtasks_created ?? 0,
   };

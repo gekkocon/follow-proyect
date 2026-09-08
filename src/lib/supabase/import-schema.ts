@@ -38,6 +38,35 @@ export type ImportTaskInput = z.infer<typeof importTaskSchema>;
 export type ImportPayload = z.infer<typeof importPayloadSchema>;
 
 // ---------------------------------------------------------------------------
+// Etapa 3, paso 4 — Importación de plan de trabajo (fases + tareas + subtareas)
+//
+// Mismo formato de tarea que importTaskSchema (reusado tal cual, sin
+// duplicar), con un nivel de fase agregado arriba. A diferencia de una tarea,
+// una fase no tiene `description` ni `assignee_names` — tiene `objective` en
+// su lugar y no lleva responsables propios.
+// ---------------------------------------------------------------------------
+
+export const importWorkPlanPhaseSchema = z.object({
+  temp_id: z.string().optional(),
+  // Igual que en tarea/subtarea: si viene, se respeta; si no, import_work_plan
+  // lo autogenera con alloc_phase_code.
+  code: z.string().optional().nullable(),
+  name: z.string().min(1, 'El nombre de la fase es requerido'),
+  objective: z.string().optional().nullable(),
+  status: statusValue,
+  priority: priorityValue,
+  due_date: z.string().optional().nullable(),
+  tasks: z.array(importTaskSchema),
+});
+
+export const importWorkPlanPayloadSchema = z.object({
+  phases: z.array(importWorkPlanPhaseSchema).min(1, 'Debe incluir al menos una fase'),
+});
+
+export type ImportWorkPlanPhaseInput = z.infer<typeof importWorkPlanPhaseSchema>;
+export type ImportWorkPlanPayload = z.infer<typeof importWorkPlanPayloadSchema>;
+
+// ---------------------------------------------------------------------------
 // Fase 8B — Actualización masiva por código
 //
 // Formato distinto al de importación: array PLANO, no anidado. Cada elemento

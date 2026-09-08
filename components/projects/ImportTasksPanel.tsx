@@ -7,11 +7,14 @@ import {
   importProjectTasks,
   previewProjectUpdate,
   updateProjectTasks,
+  previewWorkPlanImport,
+  importWorkPlan,
   type ImportPreview,
+  type ImportWorkPlanPreview,
 } from '@/src/lib/supabase/project-import-actions';
 import { FIELD_LABELS, type UpdatePreview } from '@/src/lib/supabase/update-normalize';
 
-export type ImportTasksPanelMode = 'import' | 'update';
+export type ImportTasksPanelMode = 'import' | 'update' | 'import_plan';
 
 type Props = {
   projectId: number;
@@ -45,6 +48,26 @@ const UPDATE_EXAMPLE = `[
   { "code": "F4", "assignees": ["Ana Pérez", "Luis Gómez"] }
 ]`;
 
+const IMPORT_PLAN_EXAMPLE = `{
+  "phases": [
+    {
+      "name": "Cimentación",
+      "objective": "Dejar la base lista para estructura",
+      "priority": "Alta",
+      "tasks": [
+        {
+          "title": "Diseño de planos",
+          "status": "En progreso",
+          "assignee_names": ["Ana Pérez"],
+          "subtasks": [
+            { "title": "Plano de cimentación", "priority": "Media" }
+          ]
+        }
+      ]
+    }
+  ]
+}`;
+
 const COPY: Record<ImportTasksPanelMode, { title: string; confirm: string; confirming: string }> = {
   import: {
     title: 'Importar tareas',
@@ -55,6 +78,11 @@ const COPY: Record<ImportTasksPanelMode, { title: string; confirm: string; confi
     title: 'Actualizar tareas',
     confirm: 'Confirmar actualización',
     confirming: 'Actualizando…',
+  },
+  import_plan: {
+    title: 'Importar plan de trabajo',
+    confirm: 'Confirmar importación',
+    confirming: 'Importando…',
   },
 };
 
@@ -90,6 +118,36 @@ function ImportPreviewBox({ preview }: { preview: ImportPreview }) {
         <p className="flex items-start gap-1.5 text-amber-700">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           Títulos repetidos: {preview.duplicateTitles.join(', ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ImportWorkPlanPreviewBox({ preview }: { preview: ImportWorkPlanPreview }) {
+  if (preview.error) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <p className="flex items-center gap-1.5">
+          <AlertTriangle size={12} />
+          {preview.error}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs space-y-1 text-foreground">
+      <p className="flex items-center gap-1.5 font-medium">
+        <CheckCircle2 size={12} className="text-primary" />
+        Se crearán {preview.phasesCount} fase{preview.phasesCount === 1 ? '' : 's'},{' '}
+        {preview.tasksCount} tarea{preview.tasksCount === 1 ? '' : 's'} y{' '}
+        {preview.subtasksCount} subtarea{preview.subtasksCount === 1 ? '' : 's'}.
+      </p>
+      {preview.duplicateTitles.length > 0 && (
+        <p className="flex items-start gap-1.5 text-amber-700">
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+          Títulos repetidos dentro de la misma fase: {preview.duplicateTitles.join(', ')}
         </p>
       )}
     </div>
@@ -206,16 +264,19 @@ export function ImportTasksPanel({
   const [raw, setRaw] = useState('');
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [updatePreview, setUpdatePreview] = useState<UpdatePreview | null>(null);
+  const [importPlanPreview, setImportPlanPreview] = useState<ImportWorkPlanPreview | null>(null);
   const [createMissing, setCreateMissing] = useState(false);
   const [checking, setChecking] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  // Etapa 1, paso 1D-a — fase destino. Obligatoria en modo 'import'.
+  // Etapa 1, paso 1D-a — fase destino. Obligatoria en modo 'import'. No aplica
+  // a 'import_plan': ahí las fases nacen del propio payload.
   const [phaseId, setPhaseId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const copy = COPY[mode];
   const isUpdate = mode === 'update';
+  const isImportPlan = mode === 'import_plan';
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -228,6 +289,7 @@ export function ImportTasksPanel({
   function resetPreview() {
     setImportPreview(null);
     setUpdatePreview(null);
+    setImportPlanPreview(null);
     setImportError(null);
   }
 
@@ -281,6 +343,8 @@ export function ImportTasksPanel({
     if (error || !payload) {
       if (isUpdate) {
         setImportError(error ?? 'JSON inválido');
+      } else if (isImportPlan) {
+        setImportPlanPreview({ error, phasesCount: 0, tasksCount: 0, subtasksCount: 0, duplicateTitles: [] });
       } else {
         setImportPreview({ error, tasksCount: 0, subtasksCount: 0, duplicateTitles: [] });
       }
@@ -290,6 +354,8 @@ export function ImportTasksPanel({
     setChecking(true);
     if (isUpdate) {
       setUpdatePreview(await previewProjectUpdate(projectId, payload, createMissing));
+    } else if (isImportPlan) {
+      setImportPlanPreview(await previewWorkPlanImport(projectId, payload));
     } else {
       setImportPreview(await previewProjectImport(projectId, normalizePayloadAliases(payload)));
     }
@@ -314,6 +380,10 @@ export function ImportTasksPanel({
       setImporting(true);
       setImportError(null);
       result = await updateProjectTasks(projectId, payload, createMissing);
+    } else if (isImportPlan) {
+      setImporting(true);
+      setImportError(null);
+      result = await importWorkPlan(projectId, payload);
     } else {
       if (phaseId === null) {
         setImportError('Elegí una fase destino antes de importar.');
@@ -334,7 +404,9 @@ export function ImportTasksPanel({
 
   const canConfirm = isUpdate
     ? !!updatePreview && !updatePreview.error && updatePreview.blocking.length === 0
-    : !!importPreview && !importPreview.error && phaseId !== null;
+    : isImportPlan
+      ? !!importPlanPreview && !importPlanPreview.error
+      : !!importPreview && !importPreview.error && phaseId !== null;
 
   return (
     <>
@@ -361,6 +433,13 @@ export function ImportTasksPanel({
               los campos presentes en cada objeto; los que no vengan quedan intactos. Si viene{' '}
               <code>assignees</code>, reemplaza el set completo de responsables.
             </p>
+          ) : isImportPlan ? (
+            <p className="text-xs text-muted-foreground">
+              Pega un JSON con fases, y dentro de cada una sus tareas y subtareas, o carga un
+              archivo <code>.json</code>. Las fases nacen del propio payload — no hace falta
+              elegir un destino. <code>code</code> es opcional en fase, tarea y subtarea: si no
+              viene, se autogenera.
+            </p>
           ) : (
             <p className="text-xs text-muted-foreground">
               Pega un JSON con tareas y subtareas, o carga un archivo <code>.json</code>. La
@@ -371,8 +450,9 @@ export function ImportTasksPanel({
 
           {/* Etapa 1, paso 1D-a — destino obligatorio. Toda tarea importada
               nace dentro de una fase; la sobrecarga de 3 argumentos del RPC es
-              la que lo hace. Sólo en modo 'import'. */}
-          {!isUpdate &&
+              la que lo hace. Sólo en modo 'import': 'import_plan' trae sus
+              propias fases en el payload y 'update' no crea nada. */}
+          {mode === 'import' &&
             (phases.length === 0 ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                 Este proyecto todavía no tiene fases. Creá una fase antes de importar.
@@ -430,7 +510,7 @@ export function ImportTasksPanel({
               setRaw(e.target.value);
               resetPreview();
             }}
-            placeholder={isUpdate ? UPDATE_EXAMPLE : IMPORT_EXAMPLE}
+            placeholder={isUpdate ? UPDATE_EXAMPLE : isImportPlan ? IMPORT_PLAN_EXAMPLE : IMPORT_EXAMPLE}
             rows={14}
             className="w-full rounded-md border border-border px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-white"
           />
@@ -458,7 +538,7 @@ export function ImportTasksPanel({
             </label>
           )}
 
-          {!isUpdate && existingTitles.length > 0 && (
+          {mode === 'import' && existingTitles.length > 0 && (
             <p className="text-[11px] text-muted-foreground">
               Este proyecto ya tiene {existingTitles.length} tarea
               {existingTitles.length === 1 ? '' : 's'}. La vista previa avisará si detecta títulos
@@ -466,8 +546,11 @@ export function ImportTasksPanel({
             </p>
           )}
 
-          {!isUpdate && importPreview && <ImportPreviewBox preview={importPreview} />}
+          {mode === 'import' && importPreview && <ImportPreviewBox preview={importPreview} />}
           {isUpdate && updatePreview && <UpdatePreviewBox preview={updatePreview} />}
+          {isImportPlan && importPlanPreview && (
+            <ImportWorkPlanPreviewBox preview={importPlanPreview} />
+          )}
 
           {isUpdate && updatePreview && !updatePreview.error && (
             <p className="text-[11px] text-muted-foreground">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Save, X, Upload, RefreshCw, ChevronRight, Pencil, Trash2, GripVertical, FolderInput } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -653,6 +653,9 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
   const [showImport, setShowImport] = useState(false);
   // Fase 8B — mismo panel, modo 'update'. Nunca los dos abiertos a la vez.
   const [showUpdate, setShowUpdate] = useState(false);
+  // Etapa 3, paso 4 — mismo panel, modo 'import_plan'. Nunca dos de los
+  // cuatro abiertos a la vez, mismo criterio que showImport/showUpdate.
+  const [showImportPlan, setShowImportPlan] = useState(false);
   const [showNewPhase, setShowNewPhase] = useState(false);
 
   // Collapse state, local. No fourth Zustand store: nothing outside this
@@ -831,6 +834,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
               onClick={() => {
                 setShowImport(false);
                 setShowUpdate(false);
+                setShowImportPlan(false);
                 setShowNewPhase(true);
               }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
@@ -844,6 +848,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
               <button
                 onClick={() => {
                   setShowUpdate(false);
+                  setShowImportPlan(false);
                   setShowImport(true);
                 }}
                 disabled={!hasPhases}
@@ -858,6 +863,7 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
             <button
               onClick={() => {
                 setShowImport(false);
+                setShowImportPlan(false);
                 setShowUpdate(true);
               }}
               disabled
@@ -866,6 +872,19 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
             >
               <RefreshCw size={14} />
               Actualizar tareas
+            </button>
+          )}
+          {!showNewTask && (
+            <button
+              onClick={() => {
+                setShowImport(false);
+                setShowUpdate(false);
+                setShowImportPlan(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <FolderInput size={14} />
+              Importar plan
             </button>
           )}
         </div>
@@ -1023,6 +1042,20 @@ export function ProjectTasksClient({ initialWorkPlan, users, projectId, originCo
           onClose={() => setShowUpdate(false)}
           onImported={() => {
             setShowUpdate(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {showImportPlan && (
+        <ImportTasksPanel
+          projectId={projectId}
+          mode="import_plan"
+          existingTitles={workPlan.allTasks.map((t) => t.title)}
+          phases={phaseOptions}
+          onClose={() => setShowImportPlan(false)}
+          onImported={() => {
+            setShowImportPlan(false);
             refresh();
           }}
         />
