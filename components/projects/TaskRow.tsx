@@ -29,7 +29,7 @@ import {
   updateProjectSubtask,
   deleteProjectSubtask,
 } from '@/src/lib/supabase/project-task-actions';
-import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
+import { TASK_STATUSES, TASK_PRIORITIES, isClosedStatus } from '@/src/lib/task-constants';
 import { composeCode } from '@/src/lib/work-plan';
 import { useWorkItemOriginStore, type PendingWorkItemOrigin } from '@/src/store/workItemOriginStore';
 import type {
@@ -99,7 +99,7 @@ function SubtaskRow({ subtask, parentCode, users, projectId, onRefresh, originCo
 
   const isOverdue =
     subtask.due_date &&
-    subtask.status !== 'done' &&
+    !isClosedStatus(subtask.status) &&
     isPast(parseISO(subtask.due_date)) &&
     !isToday(parseISO(subtask.due_date));
 
@@ -521,7 +521,7 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
   // Migración 014, badge de dependencias sin cerrar (ARQUITECTURA-WORKPLAN.md
   // §10) — solo visual, sin bloqueo. Mismo criterio del documento: aviso
   // cuando una tarea in_progress depende de otra que no está done.
-  const openDependencies = task.dependencies.filter((depId) => taskStatusById[depId] !== 'done');
+  const openDependencies = task.dependencies.filter((depId) => !isClosedStatus(taskStatusById[depId]));
   const hasOpenDependencies = task.status === 'in_progress' && openDependencies.length > 0;
 
   // C-1 · destinations exclude the task's own phase. For an orphan task
@@ -644,7 +644,7 @@ export function TaskRow({ task, phaseCode, users, projectId, allPhases, onDelete
 
   const isOverdue =
     task.due_date &&
-    task.status !== 'done' &&
+    !isClosedStatus(task.status) &&
     isPast(parseISO(task.due_date)) &&
     !isToday(parseISO(task.due_date));
 

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { isPast, parseISO, addDays, isWithinInterval, startOfDay } from 'date-fns';
 import { createServerClient } from '@/src/lib/supabase/server';
+import { isClosedStatus } from '@/src/lib/task-constants';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { RecentProjectsTable } from '@/components/dashboard/RecentProjectsTable';
 import { UpcomingTasksList } from '@/components/dashboard/UpcomingTasksList';
@@ -29,7 +30,7 @@ type ProjectRow = {
 type TaskRow = {
   id: number;
   title: string;
-  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
   project_id: number | null;
   due_date: string | null;
@@ -49,7 +50,7 @@ function buildDashboard(safeProjects: ProjectRow[], safeTasks: TaskRow[]) {
 
   const totalTasks    = safeTasks.length;
   const doneTasks     = safeTasks.filter((t) => t.status === 'done').length;
-  const pendingTasks  = safeTasks.filter((t) => t.status !== 'done').length;
+  const pendingTasks  = safeTasks.filter((t) => !isClosedStatus(t.status)).length;
   const blockedTasks  = safeTasks.filter((t) => t.is_blocked || t.status === 'blocked').length;
   const completionPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
@@ -68,7 +69,7 @@ function buildDashboard(safeProjects: ProjectRow[], safeTasks: TaskRow[]) {
 
   const upcomingTasks = safeTasks
     .filter((t) => {
-      if (!t.due_date || t.status === 'done') return false;
+      if (!t.due_date || isClosedStatus(t.status)) return false;
       return isWithinInterval(parseISO(t.due_date), { start: today, end: in7 });
     })
     .sort((a, b) => parseISO(a.due_date!).getTime() - parseISO(b.due_date!).getTime())
@@ -81,6 +82,7 @@ function buildDashboard(safeProjects: ProjectRow[], safeTasks: TaskRow[]) {
     { label: 'En revisión', count: safeTasks.filter((t) => t.status === 'in_review').length,               color: 'bg-purple-500' },
     { label: 'Por hacer',   count: safeTasks.filter((t) => t.status === 'todo').length,                    color: 'bg-slate-400'  },
     { label: 'Bloqueadas',  count: safeTasks.filter((t) => t.is_blocked || t.status === 'blocked').length, color: 'bg-red-500'    },
+    { label: 'Canceladas',  count: safeTasks.filter((t) => t.status === 'cancelled').length,               color: 'bg-zinc-400'   },
   ];
 
   return {

@@ -6,6 +6,7 @@ import { isPast, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AlertTriangle, AlertOctagon, ChevronDown, ChevronRight, CalendarDays, CornerDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isClosedStatus } from '@/src/lib/task-constants';
 import { updateTaskStatus } from '@/src/lib/supabase/task-actions';
 import { PriorityBadge } from '@/components/projects/PriorityBadge';
 import { StatusBadge } from '@/components/projects/StatusBadge';
@@ -80,7 +81,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
           {/* ── Mobile cards ────────────────────────────────────────────── */}
           <div className="space-y-2 md:hidden">
             {filteredTasks.map((task) => {
-              const isOverdue = task.due_date && task.status !== 'done' && isPast(parseISO(task.due_date));
+              const isOverdue = task.due_date && !isClosedStatus(task.status) && isPast(parseISO(task.due_date));
               const isBlocked = task.is_blocked || task.status === 'blocked';
               const hasSubtasks = task.subtasks.length > 0;
               const expanded = expandedIds.has(task.id);
@@ -181,7 +182,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredTasks.map((task) => {
-                    const isOverdue = task.due_date && task.status !== 'done' && isPast(parseISO(task.due_date));
+                    const isOverdue = task.due_date && !isClosedStatus(task.status) && isPast(parseISO(task.due_date));
                     const hasBlockedReason = (task.is_blocked || task.status === 'blocked') && task.blocked_reason;
                     const hasSubtasks = task.subtasks.length > 0;
                     const isExpandable = hasBlockedReason || hasSubtasks;
@@ -269,7 +270,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
 
                         {/* Subtasks — one <tr> per subtask, columns aligned with parent table */}
                         {expanded && hasSubtasks && task.subtasks.map((sub) => {
-                          const subOverdue = sub.due_date && sub.status !== 'done' && isPast(parseISO(sub.due_date));
+                          const subOverdue = sub.due_date && !isClosedStatus(sub.status) && isPast(parseISO(sub.due_date));
                           return (
                             <tr
                               key={sub.id}
@@ -326,7 +327,7 @@ export function TasksClient({ initialTasks, users, error }: Props) {
 
 // ── Subtask card — mobile ─────────────────────────────────────────────────
 function SubtaskCard({ subtask }: { subtask: SubtaskListItem }) {
-  const isOverdue = subtask.due_date && subtask.status !== 'done' && isPast(parseISO(subtask.due_date));
+  const isOverdue = subtask.due_date && !isClosedStatus(subtask.status) && isPast(parseISO(subtask.due_date));
 
   return (
     <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 space-y-1.5">

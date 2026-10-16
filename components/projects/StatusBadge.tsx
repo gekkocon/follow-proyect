@@ -23,6 +23,7 @@ const statusClassName: Record<Status, string> = {
   in_review:   'bg-purple-100 text-purple-700',
   done:        'bg-green-100 text-green-700',
   blocked:     'bg-red-100 text-red-700',
+  cancelled:   'bg-zinc-200 text-zinc-600',
 };
 
 export function StatusBadge({ status, className }: { status: Status; className?: string }) {

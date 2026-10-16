@@ -15,6 +15,7 @@ const badgeClass: Record<Status, string> = {
   in_review:   'bg-purple-100 text-purple-700',
   done:        'bg-green-100 text-green-700',
   blocked:     'bg-red-100 text-red-700',
+  cancelled:   'bg-zinc-200 text-zinc-600',
 };
 
 const dotClass: Record<Status, string> = {
@@ -23,10 +24,11 @@ const dotClass: Record<Status, string> = {
   in_review:   'bg-purple-500',
   done:        'bg-green-500',
   blocked:     'bg-red-500',
+  cancelled:   'bg-zinc-400',
 };
 
-const STATUS_ORDER: Status[] = ['todo', 'in_progress', 'in_review', 'done', 'blocked'];
-const DROPDOWN_HEIGHT = 190; // approx height of 5 options
+const STATUS_ORDER: Status[] = ['todo', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled'];
+const DROPDOWN_HEIGHT = 225; // approx height of 6 options
 
 type DropdownPos = { top: number; left: number };
 

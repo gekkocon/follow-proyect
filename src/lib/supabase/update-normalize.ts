@@ -49,6 +49,7 @@ function buildLookup<T extends string>(
 const STATUS_LOOKUP = buildLookup<DbTask['status']>(TASK_STATUSES, {
   pendiente: 'todo',
   completada: 'done',
+  canceled: 'cancelled',
 });
 
 const PRIORITY_LOOKUP = buildLookup<DbTask['priority']>(TASK_PRIORITIES, {});

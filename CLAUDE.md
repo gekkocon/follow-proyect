@@ -123,7 +123,7 @@ Campos reales — **en inglés**, no en español:
 
 `start_date`, `dependencies` y `subtasks.completed` se eliminan en la 014.
 
-**`task_status` real:** `todo · in_progress · in_review · done · blocked`. No existe `cancelled` ni `pending`.
+**`task_status` real:** `todo · in_progress · in_review · done · blocked · cancelled` ("Cancelada", migración 020). No existe `pending`. `done` y `cancelled` cuentan como cerrado (`isClosedStatus()` en `task-constants.ts`).
 
 **5 enums Postgres:** `user_role`, `user_status`, `project_status`, `priority_level`, `task_status`.
 

@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { DbPhase, TaskWithFullRelations } from '@/src/lib/supabase/types';
+import { isClosedStatus } from '@/src/lib/task-constants';
 
 // ---------------------------------------------------------------------------
 // Human-readable codes
@@ -55,10 +56,9 @@ export function codeSortValue(code: string | null | undefined): number {
 // ---------------------------------------------------------------------------
 // Progress — computed on read, never stored (ARQUITECTURA §5).
 //
-// task_status has no `cancelled` member, so the "done or cancelled" wording of
-// ARQUITECTURA §5 does not apply to this database: only `done` counts as 100.
-// `in_review` and `blocked` count as 0 — neither is finished work, and neither
-// appears in a single row today.
+// `done` and `cancelled` both count as 100 (ARQUITECTURA §5: "done or
+// cancelled") — a cancelled item has no outstanding work. `in_review` and
+// `blocked` count as 0: neither is finished work.
 // ---------------------------------------------------------------------------
 
 type ProgressTask = {
@@ -69,10 +69,10 @@ type ProgressTask = {
 /** A task with subtasks averages them; a leaf task is all-or-nothing. */
 export function taskProgress(task: ProgressTask): number {
   if (task.subtasks.length > 0) {
-    const done = task.subtasks.filter((s) => s.status === 'done').length;
+    const done = task.subtasks.filter((s) => isClosedStatus(s.status)).length;
     return (done / task.subtasks.length) * 100;
   }
-  return task.status === 'done' ? 100 : 0;
+  return isClosedStatus(task.status) ? 100 : 0;
 }
 
 /**

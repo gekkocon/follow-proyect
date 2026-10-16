@@ -6,6 +6,7 @@ export const TASK_STATUSES: { value: DbTask['status']; label: string }[] = [
   { value: 'in_review', label: 'En revisión' },
   { value: 'done', label: 'Completada' },
   { value: 'blocked', label: 'Bloqueada' },
+  { value: 'cancelled', label: 'Cancelada' },
 ];
 
 export const TASK_PRIORITIES: { value: DbTask['priority']; label: string }[] = [
@@ -29,6 +30,9 @@ const STATUS_ALIASES: Record<string, DbTask['status']> = {
   done: 'done',
   bloqueada: 'blocked',
   blocked: 'blocked',
+  cancelada: 'cancelled',
+  cancelled: 'cancelled',
+  canceled: 'cancelled',
 };
 
 const PRIORITY_ALIASES: Record<string, DbTask['priority']> = {
@@ -53,6 +57,11 @@ export function normalizeTaskStatus(value?: string | null): DbTask['status'] {
 export function normalizeTaskPriority(value?: string | null): DbTask['priority'] {
   if (!value) return 'medium';
   return PRIORITY_ALIASES[value.trim().toLowerCase()] ?? 'medium';
+}
+
+/** Done or cancelled: no outstanding work (no overdue flag, counts as closed in progress). */
+export function isClosedStatus(status: string | null | undefined): boolean {
+  return status === 'done' || status === 'cancelled';
 }
 
 export type { DbSubtask };

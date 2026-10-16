@@ -36,7 +36,7 @@ export type DbTask = {
   code: string | null;
   title: string;
   description: string | null;
-  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
   project_id: number | null;
   // Etapa 1 (migración 013): la tarea cuelga de una fase. Nullable mientras
@@ -71,7 +71,7 @@ export type DbSubtask = {
   code: string | null;
   title: string;
   description: string | null;
-  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
   due_date: string | null;
   task_id: number;
@@ -89,7 +89,7 @@ export type DbPhase = {
   code: string;
   name: string;
   objective: string | null;
-  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked';
+  status: 'todo' | 'in_progress' | 'in_review' | 'done' | 'blocked' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
   start_date: string | null;
   due_date: string | null;

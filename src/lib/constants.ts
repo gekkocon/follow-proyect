@@ -3,7 +3,7 @@ import { TASK_STATUSES, TASK_PRIORITIES } from '@/src/lib/task-constants';
 export const USER_ROLES = ['admin', 'pm', 'developer', 'designer'] as const;
 export const USER_STATUS = ['active', 'inactive'] as const;
 export const PROJECT_STATUS = ['planning', 'active', 'on_hold', 'completed', 'overdue'] as const;
-export const TASK_STATUS = ['todo', 'in_progress', 'in_review', 'done', 'blocked'] as const;
+export const TASK_STATUS = ['todo', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled'] as const;
 export const PRIORITY_LEVELS = ['low', 'medium', 'high', 'critical'] as const;
 
 export const USER_ROLE_LABELS: Record<(typeof USER_ROLES)[number], string> = {
